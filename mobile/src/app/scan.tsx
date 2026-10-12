@@ -30,6 +30,26 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** The session is (re)starting, e.g. right after a lens switch: retry instead of failing. */
 const isNotReady = (e: unknown) => String(e).includes('CameraNotReady');
 
+/**
+ * Web: expo-camera opens the stream without a resolution, so browsers fall back to about 640×480, too coarse to read
+ * a date. Ask the running stream for Full HD (the browser picks the closest it can do).
+ */
+async function sharpenWebStream() {
+  let stream: unknown;
+  // onCameraReady fires before expo-camera attaches the stream to the <video>
+  for (let i = 0; i < 20 && !(stream instanceof MediaStream); i++) {
+    stream = document.querySelector('video')?.srcObject;
+    if (!(stream instanceof MediaStream)) await sleep(100);
+  }
+  const track = stream instanceof MediaStream ? stream.getVideoTracks()[0] : undefined;
+  try {
+    await track?.applyConstraints({ width: { ideal: 1920 }, height: { ideal: 1080 } });
+    await sleep(300); // let the new frame size reach the video element
+  } catch {
+    // keep the default resolution
+  }
+}
+
 const imageSize = (uri: string) =>
   new Promise<[number, number]>((resolve, reject) => Image.getSize(uri, (w, h) => resolve([w, h]), reject));
 
@@ -108,7 +128,8 @@ export default function ScanScreen() {
 
   // Choose the lens first: switching it restarts the session, and photos taken meanwhile fail.
   const onReady = async () => {
-    if (lens === undefined) {
+    if (Platform.OS === 'web') await sharpenWebStream();
+    if (Platform.OS !== 'web' && lens === undefined) {
       try {
         const lenses = (await camera.current?.getAvailableLensesAsync()) ?? [];
         const best = PREFERRED_LENSES.map((re) => lenses.find((l) => re.test(l))).find(Boolean);
