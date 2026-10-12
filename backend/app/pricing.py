@@ -14,6 +14,11 @@ from app.metals import TROY_OZ_G
 GRADES = ["B", "TB", "TTB", "SUP", "SPL", "FDC"]
 RESALE_FACTOR = 0.8  # dealers buy ~20% under their selling price
 MELT_PREMIUM = 1.05  # a coin never sells under its metal value plus a small premium
+# Backtest (bench/pricing.py): old prices predict today's within ~15-18% when the newest is under 7 years old and
+# there are several; a single price, or only prices 7+ years old, miss by ~40% and come out too high. Such an
+# estimate's range reaches down by LOW_CONFIDENCE_SPREAD.
+STALE_AGE = 7  # years
+LOW_CONFIDENCE_SPREAD = 1.4
 
 # Approximate LBMA annual averages, USD/oz (2025 is approximate). Used only to strip the metal content out of
 # dated historical prices; today's price always comes from the live spot.
@@ -132,6 +137,12 @@ def _interpolate(rows: list[GradePrice]) -> None:
             rows[i].retail = rows[a].retail * (rows[b].retail / rows[a].retail) ** t
 
 
+def low_confidence(points: list[Point]) -> bool:
+    """Too little or too old data for a tight estimate (see LOW_CONFIDENCE_SPREAD)."""
+    dated = [p.year for p in points if p.year]
+    return len(points) < 2 or not dated or date.today().year - max(dated) >= STALE_AGE
+
+
 @dataclass
 class Estimate:
     grade: str
@@ -141,8 +152,11 @@ class Estimate:
     retail_high: float
 
 
-def estimate(rows: list[GradePrice], grade: str | None, melt_now: float | None) -> Estimate | None:
-    """Range for the estimated grade: from half a grade below to half a grade above, never under melt."""
+def estimate(
+    rows: list[GradePrice], grade: str | None, melt_now: float | None, uncertain: bool = False
+) -> Estimate | None:
+    """Range for the estimated grade: from half a grade below to half a grade above, never under melt. `uncertain`
+    (low_confidence data): the range reaches down by LOW_CONFIDENCE_SPREAD."""
     if grade not in GRADES:
         return None
     i = GRADES.index(grade)
@@ -166,6 +180,8 @@ def estimate(rows: list[GradePrice], grade: str | None, melt_now: float | None) 
     # premium can top a better coin's), so the range is ordered
     retail_low, retail_high = sorted(((below * row.retail) ** 0.5, (above * row.retail) ** 0.5))
     floor = melt_now or 0.0
+    if uncertain:
+        retail_low = max(retail_low / LOW_CONFIDENCE_SPREAD, floor * MELT_PREMIUM)
     return Estimate(
         grade=grade,
         value_low=round(max(retail_low * RESALE_FACTOR, floor), 0),

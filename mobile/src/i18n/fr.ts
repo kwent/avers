@@ -122,6 +122,8 @@ const fr = {
       `Prix calculé d’après ${n} annonce${n > 1 ? 's' : ''} du catalogue${years ? ` (${years})` : ''}, les plus récentes comptant davantage.`,
     basisMetal: (melt: string, pct: number) => `Le métal seul vaut ${melt}, soit ${pct}\u202f% du prix en boutique.`,
     basisResale: 'Entre particuliers, comptez environ 80\u202f% du prix en boutique.',
+    basisUncertain: (last: number | null) =>
+      `Peu de prix${last ? `, le plus récent de ${last}` : ''} : estimation moins sûre, la fourchette descend plus bas.`,
     noMatch: 'Pas de correspondance exacte dans le catalogue : les informations viennent de la lecture des photos.',
     yearTitle: (year: number) => `Est-ce bien ${year} ?`,
     yearBody: (year: number) =>

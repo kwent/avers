@@ -244,7 +244,8 @@ def price(
     )
     table = pricing.price_table(points, melt_now)
     result["price_table"] = [asdict(r) for r in table]
-    est = pricing.estimate(table, coin.grade, melt_now)
+    uncertain = pricing.low_confidence(points)
+    est = pricing.estimate(table, coin.grade, melt_now, uncertain)
     if est is not None:
         sale_years = [p.year for p in points if p.year]
         result["valuation"] = {
@@ -257,6 +258,8 @@ def price(
             # facts for the app's own wording (no generated text)
             "basis": {
                 "listings": len(points),
+                "sold": sum(p.kind == "sold" for p in points),
+                "low_confidence": uncertain,
                 "first_year": min(sale_years) if sale_years else None,
                 "last_year": max(sale_years) if sale_years else None,
                 "metal_share": round(melt_now / est.retail_high, 2) if melt_now and est.retail_high else None,

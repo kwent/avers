@@ -64,7 +64,15 @@ export type Valuation = {
   source?: 'catalog' | 'numista';
   // explanation text from older saved estimates; new ones carry `basis` and the app writes the text
   explanation?: string;
-  basis?: { listings: number; first_year: number | null; last_year: number | null; metal_share: number | null };
+  basis?: {
+    listings: number;
+    sold?: number;
+    first_year: number | null;
+    last_year: number | null;
+    metal_share: number | null;
+    /** few or old prices: the range reaches lower */
+    low_confidence?: boolean;
+  };
 };
 
 export type CatalogMatch = {

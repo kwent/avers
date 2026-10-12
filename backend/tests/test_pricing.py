@@ -88,3 +88,13 @@ def test_range_stays_ordered_when_a_better_grade_is_cheaper():
     rows = pricing.price_table(pricing.prepare([pt(2649, "TTB"), pt(2111, "SUP")], None, None, None, 1.0), None)
     est = pricing.estimate(rows, "TTB", None)
     assert est.retail_low <= est.retail_high and est.value_low <= est.value_high
+
+
+def test_one_old_price_gives_a_wider_range_downward():
+    old = [pt(2500, "TTB", year=2014)]
+    assert pricing.low_confidence(old)
+    assert not pricing.low_confidence([pt(2500, "TTB", year=2024), pt(2600, "TTB", year=2023)])
+    rows = pricing.price_table(pricing.prepare(old, None, None, None, 1.0), None)
+    sure, unsure = pricing.estimate(rows, "TTB", None), pricing.estimate(rows, "TTB", None, uncertain=True)
+    assert unsure.retail_high == sure.retail_high
+    assert unsure.retail_low == pytest.approx(sure.retail_low / pricing.LOW_CONFIDENCE_SPREAD, abs=1)

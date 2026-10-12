@@ -116,6 +116,8 @@ const en: Messages = {
       `Price computed from ${n} catalog listing${n === 1 ? '' : 's'}${years ? ` (${years})` : ''}, recent ones counting more.`,
     basisMetal: (melt, pct) => `The metal alone is worth ${melt}, ${pct}% of the shop price.`,
     basisResale: 'Between private collectors, expect about 80% of the shop price.',
+    basisUncertain: (last) =>
+      `Few prices${last ? `, the latest from ${last}` : ''}: a less certain estimate, so the range reaches lower.`,
     noMatch: 'No exact match in the catalog: the information comes from reading the photos.',
     yearTitle: (year) => `Is it really ${year}?`,
     yearBody: (year) =>

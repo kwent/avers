@@ -76,12 +76,13 @@ function explanation(est: Estimate, m: Messages, locale: string): string {
   const v = est.valuation;
   if (!v) return '';
   if (!v.basis) return v.explanation ?? '';
-  const { listings, first_year, last_year, metal_share } = v.basis;
+  const { listings, first_year, last_year, metal_share, low_confidence } = v.basis;
   const years =
     first_year && last_year ? (first_year === last_year ? `${first_year}` : `${first_year}–${last_year}`) : null;
   const parts = [v.source === 'numista' ? m.estimate.basisNumista : m.estimate.basisListings(listings, years)];
   if (est.melt && metal_share != null)
     parts.push(m.estimate.basisMetal(money(est.melt.value, est.currency, locale), Math.round(metal_share * 100)));
+  if (low_confidence) parts.push(m.estimate.basisUncertain(last_year));
   parts.push(m.estimate.basisResale);
   return parts.join(' ');
 }
