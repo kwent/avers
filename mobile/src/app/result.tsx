@@ -19,13 +19,18 @@ export default function ResultScreen() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // kept in the scan too, so coming back to this screen shows the same estimate
+  const show = (e: Estimate) => {
+    scan.estimate = e;
+    setEst(e);
+  };
+
   const run = () => {
     if (!scan.front) return setError(m.result.noPhoto);
     setError(null);
     estimate(settings, scan.front, scan.back, language)
       .then((e) => {
-        scan.estimate = e;
-        setEst(e);
+        show(e);
         success();
       })
       .catch((e) => setError(errorText(e, m)));
@@ -39,8 +44,7 @@ export default function ResultScreen() {
     if (!est) return;
     try {
       const e = await correctYear(settings, est, year);
-      scan.estimate = e;
-      setEst(e);
+      show(e);
       if (e.valuation) success();
     } catch (e) {
       setError(errorText(e, m));
@@ -115,9 +119,8 @@ export default function ResultScreen() {
     );
   }
 
-  // The API reorders swapped sides; mirror that for the local photos shown here.
-  const swapped = coin.photo_sides[0] === 'reverse' && coin.photo_sides[1] === 'obverse';
-  const shown = swapped ? [scan.back, scan.front] : [scan.front, scan.back];
+  // the local photos, in the order the API settled on (obverse first)
+  const shown = est.photos.swapped ? [scan.back, scan.front] : [scan.front, scan.back];
 
   return (
     <View className="flex-1">

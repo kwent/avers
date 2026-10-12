@@ -95,6 +95,9 @@ EDITABLE = {
 }
 
 
+SCAN_ONLY = {"year_check", "already_owned"}
+
+
 class Store:
     """Collection storage. SQL is written with '?' placeholders; Postgres gets them rewritten to '%s'."""
 
@@ -162,6 +165,8 @@ class Store:
     # --- items
 
     def add(self, estimate: dict, quantity: int = 1, notes: str | None = None) -> int:
+        # what only mattered while scanning (the year question, "already owned") is not part of the saved coin
+        estimate = {k: v for k, v in estimate.items() if k not in SCAN_ONLY}
         coin = estimate["identification"]
         valuation = estimate.get("valuation") or {}
         params = (

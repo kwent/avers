@@ -90,7 +90,13 @@ function explanation(est: Estimate, m: Messages, locale: string): string {
  * The estimate of one coin. `children` (e.g. the collection controls of a saved coin) is placed right after the
  * answer, before the details.
  */
-export function EstimateView(props: { est: Estimate; photos: (string | undefined)[]; children?: ReactNode }) {
+export function EstimateView(props: {
+  est: Estimate;
+  photos: (string | undefined)[];
+  /** a coin of the collection: what only matters while scanning (year question, "already owned") is left out */
+  saved?: boolean;
+  children?: ReactNode;
+}) {
   return (
     <CopyProvider>
       <EstimateContent {...props} />
@@ -99,14 +105,18 @@ export function EstimateView(props: { est: Estimate; photos: (string | undefined
 }
 
 function EstimateContent({
-  est,
+  est: scanned,
   photos,
+  saved,
   children,
 }: {
   est: Estimate;
   photos: (string | undefined)[];
+  saved?: boolean;
   children?: ReactNode;
 }) {
+  // coins saved before the API stripped scan-only fields still carry them
+  const est = saved ? { ...scanned, year_check: null, already_owned: 0 } : scanned;
   const { m, locale } = useI18n();
   const { width } = useWindowDimensions();
   const coin = est.identification;

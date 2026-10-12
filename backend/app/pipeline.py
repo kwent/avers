@@ -96,6 +96,7 @@ class Shots:
     names: list[str]
     queries: list[np.ndarray]
     warning: str | None = None
+    swapped: bool = False  # the obverse was sent second: names are in display order, the upload order reversed
 
 
 def _queries(photos: list[tuple[bytes, str]], src: Sources) -> list[np.ndarray]:
@@ -121,14 +122,15 @@ def run(photos: list[tuple[bytes, str]], currency: str, language: str, src: Sour
         queries = queries.result()
 
     names = [name for _, name in photos]
-    photo_warning = None
+    photo_warning, swapped = None, False
     if len(names) == 2 and len(coin.photo_sides) == 2:
         if coin.photo_sides == ["reverse", "obverse"]:
             names.reverse()  # the user swapped the sides: show the obverse first
+            swapped = True
         elif coin.photo_sides[0] == coin.photo_sides[1] != "unclear":
             photo_warning = "same_side"
 
-    return price(coin, Shots(names, queries, photo_warning), currency, language, src)
+    return price(coin, Shots(names, queries, photo_warning, swapped), currency, language, src)
 
 
 def correct_year(previous: dict, year: int, src: Sources) -> dict:
@@ -144,7 +146,7 @@ def correct_year(previous: dict, year: int, src: Sources) -> dict:
                 queries.append(np.frombuffer(vectors, dtype=np.float32).reshape(-1, visual.DIM))
             elif (photo := src.store.photo(name)) is not None:  # saved before vectors were kept
                 queries.append(src.index.query(photo))
-    shots = Shots(names, queries, previous.get("photo_warning"))
+    shots = Shots(names, queries, previous.get("photo_warning"), previous["photos"].get("swapped", False))
     language = previous.get("language", identify.DEFAULT_LANGUAGE)
     return price(coin, shots, previous["currency"], language, src, year_confirmed=True)
 
@@ -162,7 +164,11 @@ def price(
     result = {
         "currency": currency,
         "language": language,
-        "photos": {"front": shots.names[0], "back": shots.names[1] if len(shots.names) > 1 else None},
+        "photos": {
+            "front": shots.names[0],
+            "back": shots.names[1] if len(shots.names) > 1 else None,
+            "swapped": shots.swapped,
+        },
         "photo_warning": shots.warning,
         "identification": coin.model_dump(),
         "match": None,

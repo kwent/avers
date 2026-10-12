@@ -123,6 +123,7 @@ def test_photo_sides(fake_vision, monkeypatch, sides, swapped, warning):
     assert est["photo_warning"] == warning
     front, back = (r["name"] for r in main.store.query("SELECT name FROM photos ORDER BY rowid DESC LIMIT 2")[::-1])
     assert (est["photos"]["front"], est["photos"]["back"]) == ((back, front) if swapped else (front, back))
+    assert est["photos"]["swapped"] is swapped
 
 
 def test_photos_are_served_without_the_token_and_pruned(monkeypatch, fake_vision):

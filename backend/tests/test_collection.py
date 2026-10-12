@@ -1,3 +1,4 @@
+import json
 import os
 
 import pytest
@@ -83,3 +84,9 @@ def test_postgres_reconnects_after_a_dropped_connection(store):
     store.count_estimate()
     store._pg.close()  # what an idle connection closed by the server looks like
     assert store.query("SELECT 1 AS one") == [{"one": 1}]
+
+
+def test_saved_coin_leaves_scan_only_fields_out(store):
+    item_id = store.add({**estimate(), "year_check": {"read": 1861, "suggestions": [1851]}, "already_owned": 2})
+    saved = json.loads(store.get(item_id)["estimate"])
+    assert "year_check" not in saved and "already_owned" not in saved

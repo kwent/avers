@@ -84,7 +84,8 @@ export type GradePrice = { grade: string; retail: number | null; resale: number 
 
 export type Estimate = {
   currency: string;
-  photos: { front: string; back: string | null };
+  /** stored photo names, obverse first; `swapped`: the obverse was sent second */
+  photos: { front: string; back: string | null; swapped?: boolean };
   photo_warning: 'same_side' | null;
   identification: Identification;
   melt: Melt | null;
