@@ -45,8 +45,13 @@ def test_year_struck_but_not_listed_is_priced_by_numista(monkeypatch, fake_numis
     est = estimate_of(monkeypatch, year=1851, catalog_refs=[])  # no Gadoury listing in the test catalog
     assert est["year_check"] is None  # Numista knows 1851 A: nothing to ask
     assert est["numista"]["issue"] == {"id": 2, "mintage": 4_000_000, "mint": "A"}
-    assert est["valuation"]["value_low"] == 700  # TTB -> Numista "vf"
-    assert est["valuation"]["source"] == "numista"
+    # Numista's grade prices go through the same pricing as listings: TTB = "vf" 700 €, SUP = "xf" 900 €
+    table = {r["grade"]: r["retail"] for r in est["price_table"]}
+    assert (table["TTB"], table["SUP"]) == (700, 900)
+    v = est["valuation"]
+    assert (v["retail_low"], v["retail_high"]) == (700, 794)  # half a grade either side, geometric
+    assert v["value_low"] == 560  # what a private seller gets: RESALE_FACTOR of the shop price
+    assert v["source"] == "numista"
 
 
 def test_year_never_struck_asks_with_numistas_years(monkeypatch, fake_numista):

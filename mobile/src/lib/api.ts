@@ -61,8 +61,8 @@ export type Valuation = {
   retail_low: number | null;
   retail_high: number | null;
   best_match_ids: number[];
-  /** 'numista': no catalog listing, the price is Numista's estimate for the grade */
-  source?: 'numista';
+  /** where the prices come from: catalog listings, or Numista's estimates when the catalog has none */
+  source?: 'catalog' | 'numista';
   // explanation text from older saved estimates; new ones carry `basis` and the app writes the text
   explanation?: string;
   basis?: { listings: number; first_year: number | null; last_year: number | null; metal_share: number | null };

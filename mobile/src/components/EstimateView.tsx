@@ -79,7 +79,7 @@ function explanation(est: Estimate, m: Messages, locale: string): string {
   const { listings, first_year, last_year, metal_share } = v.basis;
   const years =
     first_year && last_year ? (first_year === last_year ? `${first_year}` : `${first_year}–${last_year}`) : null;
-  const parts = [m.estimate.basisListings(listings, years)];
+  const parts = [v.source === 'numista' ? m.estimate.basisNumista : m.estimate.basisListings(listings, years)];
   if (est.melt && metal_share != null)
     parts.push(m.estimate.basisMetal(money(est.melt.value, est.currency, locale), Math.round(metal_share * 100)));
   parts.push(m.estimate.basisResale);
@@ -172,7 +172,7 @@ function EstimateContent({
             <T variant="display" tone="gold" selectable>
               {worth}
             </T>
-            <T tone="soft">{v.source === 'numista' ? m.estimate.numistaSub(coin.grade) : m.estimate.worthSub}</T>
+            <T tone="soft">{v.source === 'numista' ? m.estimate.numistaSub : m.estimate.worthSub}</T>
             {v.retail_low != null && (
               <T variant="bodyStrong" className="mt-2">
                 {m.estimate.shopPrice(range(v.retail_low, v.retail_high, cur, locale))}
@@ -202,7 +202,7 @@ function EstimateContent({
 
         {v?.source === 'numista' && <Notice>{m.estimate.numistaWhy}</Notice>}
 
-        {v && v.source !== 'numista' && (
+        {v && !!est.price_table?.length && (
           <PriceTable
             rows={est.price_table ?? []}
             grade={coin.grade}

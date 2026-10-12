@@ -130,7 +130,8 @@ const fr = {
     yearKeep: (year: number) => `Oui, c’est bien ${year}`,
     yearOther: 'Autre année',
     yearCheck: 'Année à vérifier',
-    numistaSub: (grade: string) => `prix indicatif Numista pour l’état ${grade}`,
+    numistaSub: 'entre particuliers, d’après Numista',
+    basisNumista: 'D’après les prix de Numista pour chaque état.',
     numistaWhy:
       'Aucune annonce de cette pièce dans notre catalogue : ce prix est l’estimation de Numista, une base de collectionneurs. À confirmer auprès d’un marchand.',
     seeNumista: 'Voir sur Numista',

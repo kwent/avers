@@ -14,6 +14,7 @@ import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
+from datetime import date
 
 import numpy as np
 
@@ -37,6 +38,40 @@ def _apply_catalog_facts(coin: identify.CoinIdentification, row: sqlite3.Row) ->
     if listed:  # the listing's Gadoury numbers replace whatever the reading claimed
         others = [r for r in coin.catalog_refs if not matching.gadoury_refs([r])]
         coin.catalog_refs = [f"G. {ref}" for ref in sorted(listed)] + others
+
+
+def _listing_points(rows: list[sqlite3.Row], currency: str) -> list[pricing.Point]:
+    """Catalog listings of the coin as price points (asking prices, or sold when out of stock)."""
+    points = []
+    for r in rows:
+        listed = metals.convert(r["price"], r["currency"], currency)
+        if listed:
+            points.append(
+                pricing.Point(
+                    source=r["source"],
+                    price=listed,
+                    grade=r["grade"],
+                    rank=pricing.grade_rank(r["grade"]),
+                    year=_year(r["modified"] or r["created"]),
+                    kind="listing" if r["in_stock"] else "sold",
+                    url=r["url"],
+                )
+            )
+    return points
+
+
+def _numista_points(ref: dict | None) -> list[pricing.Point]:
+    """Numista's current estimate per grade (market prices), priced like listings: same grade table, melt floor
+    and resale rule."""
+    if not ref:
+        return []
+    this_year = date.today().year
+    return [
+        pricing.Point(
+            source="numista", price=p, grade=g, rank=pricing.grade_rank(g), year=this_year, kind="sold", url=ref["url"]
+        )
+        for g, p in ref["prices"].items()
+    ]
 
 
 def set_year(coin: identify.CoinIdentification, year: int) -> None:
@@ -167,42 +202,21 @@ def price(
     same_ids = {r["id"] for r in same}
     comparables = catalog.comparables(src.catalog_db, coin, currency)
     result["comparables"] = sorted(comparables, key=lambda c: c["id"] not in same_ids)
+    points = _listing_points(same, currency)
+    source = "catalog"
     if not same:  # no catalog listing of this exact coin: ask Numista, never make a price up
         lookup = coin
         if not matching.gadoury_refs(coin.catalog_refs):  # look the type up by the catalog's Gadoury numbers
             lookup = coin.model_copy(update={"catalog_refs": matching.type_refs(src.catalog_db, coin)})
         ref = numista.lookup(src.store, lookup, currency)
         result["numista"] = ref
-        check = years.check(src.catalog_db, coin, ref) if coin.year and not year_confirmed else None
-        result["year_check"] = check
-        numista_price = ref and ref["prices"].get(coin.grade)
-        if numista_price and not check:
-            result["valuation"] = {
-                "value_low": numista_price,
-                "value_high": numista_price,
-                "retail_low": None,
-                "retail_high": None,
-                "best_match_ids": [],
-                "source": "numista",
-                "basis": None,
-            }
+        result["year_check"] = years.check(src.catalog_db, coin, ref) if coin.year and not year_confirmed else None
+        if result["year_check"]:
+            return result  # no price until the user says which year the coin shows
+        points, source = _numista_points(ref), "numista"
+    if not points:
         return result
 
-    points = []
-    for r in same:
-        listed = metals.convert(r["price"], r["currency"], currency)
-        if listed:
-            points.append(
-                pricing.Point(
-                    source=r["source"],
-                    price=listed,
-                    grade=r["grade"],
-                    rank=pricing.grade_rank(r["grade"]),
-                    year=_year(r["modified"] or r["created"]),
-                    kind="listing" if r["in_stock"] else "sold",
-                    url=r["url"],
-                )
-            )
     melt_now = melt["value"] if melt else None
     pricing.prepare(
         points,
@@ -222,6 +236,7 @@ def price(
             "retail_low": est.retail_low,
             "retail_high": est.retail_high,
             "best_match_ids": sorted(same_ids),
+            "source": source,
             # facts for the app's own wording (no generated text)
             "basis": {
                 "listings": len(points),
