@@ -9,21 +9,17 @@ coin shows; `correct_year` then re-prices the same reading with that year (no ne
 """
 
 import logging
-import os
 import re
 import sqlite3
 import time
-from dataclasses import asdict, dataclass, field
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass
 
-from app import catalog, collection, identify, matching, metals, numista, pricing, years
+import numpy as np
+
+from app import catalog, collection, identify, matching, metals, numista, pricing, visual, years
 
 log = logging.getLogger(__name__)
-
-# e2e only (scripts/e2e-ios.sh): years the reading is turned into, "1851:1861", to exercise the year question with
-# a model that reads the fixture right. Never set in production.
-E2E_MISREAD = {
-    int(a): int(b) for a, b in (p.split(":") for p in os.environ.get("E2E_MISREAD_YEARS", "").split(",") if ":" in p)
-}
 
 
 def _year(value: str | None) -> int | None:
@@ -43,7 +39,7 @@ def _apply_catalog_facts(coin: identify.CoinIdentification, row: sqlite3.Row) ->
         coin.catalog_refs = [f"G. {ref}" for ref in sorted(listed)] + others
 
 
-def _set_year(coin: identify.CoinIdentification, year: int) -> None:
+def set_year(coin: identify.CoinIdentification, year: int) -> None:
     if coin.year and coin.title:  # the title was written from the reading: carry the new year into it
         coin.title = coin.title.replace(str(coin.year), str(year))
     coin.year = year
@@ -60,21 +56,34 @@ class Sources:
 
 @dataclass
 class Shots:
-    """The photos of an estimate: stored names (obverse first), their bytes, and a warning about them."""
+    """The photos of an estimate: stored names (obverse first), their visual query vectors, a warning about them."""
 
     names: list[str]
-    data: list[bytes] = field(default_factory=list)
+    queries: list[np.ndarray]
     warning: str | None = None
+
+
+def _queries(photos: list[tuple[bytes, str]], src: Sources) -> list[np.ndarray]:
+    """Visual query vectors of the photos, kept with them so a re-price (correct_year) needs no model run."""
+    if src.index is None:
+        return []
+    out = []
+    for data, name in photos:
+        q = src.index.query(data)
+        if isinstance(q, np.ndarray):
+            src.store.set_embedding(name, q.astype(np.float32).tobytes())
+        out.append(q)
+    return out
 
 
 def run(photos: list[tuple[bytes, str]], currency: str, language: str, src: Sources) -> dict:
     """photos: [(jpeg bytes, stored file name)], front first."""
     t0 = time.monotonic()
-    coin = identify.identify([(data, "image/jpeg") for data, _ in photos], language)
-    log.warning("estimate identified (%s, %.2f) +%.1fs", coin.status, coin.confidence, time.monotonic() - t0)
-
-    if coin.year in E2E_MISREAD:
-        _set_year(coin, E2E_MISREAD[coin.year])
+    with ThreadPoolExecutor(max_workers=1) as pool:  # the visual model runs while the vision model reads the photos
+        queries = pool.submit(_queries, photos, src)
+        coin = identify.identify([(data, "image/jpeg") for data, _ in photos], language)
+        log.warning("estimate identified (%s, %.2f) +%.1fs", coin.status, coin.confidence, time.monotonic() - t0)
+        queries = queries.result()
 
     names = [name for _, name in photos]
     photo_warning = None
@@ -84,17 +93,23 @@ def run(photos: list[tuple[bytes, str]], currency: str, language: str, src: Sour
         elif coin.photo_sides[0] == coin.photo_sides[1] != "unclear":
             photo_warning = "same_side"
 
-    shots = Shots(names, [data for data, _ in photos], photo_warning)
-    return price(coin, shots, currency, language, src)
+    return price(coin, Shots(names, queries, photo_warning), currency, language, src)
 
 
 def correct_year(previous: dict, year: int, src: Sources) -> dict:
     """Re-price a previous estimate with the year the user reads on the coin. Same reading, no AI call."""
     coin = identify.CoinIdentification.model_validate(previous["identification"])
-    _set_year(coin, year)
+    set_year(coin, year)
     names = [n for n in (previous["photos"]["front"], previous["photos"]["back"]) if n]
-    data = [d for d in (src.store.photo(n) for n in names) if d is not None]
-    shots = Shots(names, data, previous.get("photo_warning"))
+    queries = []
+    if src.index is not None:
+        for name in names:
+            vectors = src.store.embedding(name)
+            if vectors is not None:
+                queries.append(np.frombuffer(vectors, dtype=np.float32).reshape(-1, visual.DIM))
+            elif (photo := src.store.photo(name)) is not None:  # saved before vectors were kept
+                queries.append(src.index.query(photo))
+    shots = Shots(names, queries, previous.get("photo_warning"))
     language = previous.get("language", identify.DEFAULT_LANGUAGE)
     return price(coin, shots, previous["currency"], language, src, year_confirmed=True)
 
@@ -126,7 +141,7 @@ def price(
     if coin.status != "identified":
         return result  # never value something we could not identify
 
-    match = matching.find(src.catalog_db, coin, shots.data, src.index)
+    match = matching.find(src.catalog_db, coin, shots.queries, src.index)
     log.warning("estimate matched (%s) +%.1fs", match and match.row["id"], time.monotonic() - t0)
     if match:
         _apply_catalog_facts(coin, match.row)

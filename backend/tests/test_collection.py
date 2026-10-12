@@ -59,3 +59,27 @@ def test_photos_and_pruning(store):
 def test_daily_usage_counter(store):
     store.execute("DELETE FROM daily_usage")
     assert [store.count_estimate() for _ in range(3)] == [1, 2, 3]
+
+
+def test_photo_thumbnail_and_query_vectors(store):
+    store.put_photo("a.jpg", b"full", b"small")
+    store.put_photo("b.jpg", b"full only")
+    assert store.photo("a.jpg", thumb=True) == b"small"
+    assert store.photo("a.jpg") == b"full"
+    assert store.photo("b.jpg", thumb=True) == b"full only"  # older photos have no thumbnail
+    assert store.embedding("a.jpg") is None
+    store.set_embedding("a.jpg", b"\x01\x02")
+    assert store.embedding("a.jpg") == b"\x01\x02"
+
+
+def test_list_leaves_the_saved_estimate_out(store):
+    store.add(estimate())
+    assert "estimate" not in store.items()[0]
+
+
+def test_postgres_reconnects_after_a_dropped_connection(store):
+    if not store.postgres:
+        pytest.skip("Postgres only")
+    store.count_estimate()
+    store._pg.close()  # what an idle connection closed by the server looks like
+    assert store.query("SELECT 1 AS one") == [{"one": 1}]

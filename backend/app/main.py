@@ -18,6 +18,8 @@ from app import collection, framecheck, identify, metals, pipeline, visual
 from app.db import connect
 
 MAX_SIDE = 1568  # vision models downsize anything larger anyway
+THUMB_SIDE = 256  # list thumbnails (shown at 72pt, 3x on a phone)
+PRUNE_EVERY = 10  # forget unsaved photos on one estimate in N
 APP_TOKEN = os.environ.get("APP_TOKEN")  # optional shared secret once exposed beyond the LAN
 # Backstop against abuse of the vision model (a leaked access code): estimates per UTC day, 0 = unlimited.
 MAX_ESTIMATES_PER_DAY = int(os.environ.get("MAX_ESTIMATES_PER_DAY", "100"))
@@ -48,11 +50,17 @@ def _normalize_photo(upload: UploadFile) -> tuple[bytes, str]:
     except Exception as e:
         raise HTTPException(400, f"{upload.filename}: unreadable image") from e
     img.thumbnail((MAX_SIDE, MAX_SIDE))
-    buf = io.BytesIO()
-    img.save(buf, "JPEG", quality=88)
+    data = _jpeg(img, 88)
+    img.thumbnail((THUMB_SIDE, THUMB_SIDE))
     name = f"{uuid.uuid4().hex}.jpg"
-    store.put_photo(name, buf.getvalue())
-    return buf.getvalue(), name
+    store.put_photo(name, data, _jpeg(img, 80))
+    return data, name
+
+
+def _jpeg(img: Image.Image, quality: int) -> bytes:
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=quality)
+    return buf.getvalue()
 
 
 @app.get("/health")
@@ -84,9 +92,11 @@ def estimate(
 ):
     currency = currency.upper()
     language = language if language in identify.LANGUAGES else identify.DEFAULT_LANGUAGE
-    if MAX_ESTIMATES_PER_DAY and store.count_estimate() > MAX_ESTIMATES_PER_DAY:
+    today = store.count_estimate()
+    if MAX_ESTIMATES_PER_DAY and today > MAX_ESTIMATES_PER_DAY:
         raise HTTPException(429, "daily estimate limit reached")
-    store.prune_photos()
+    if today % PRUNE_EVERY == 1:
+        store.prune_photos()
     photos = [_normalize_photo(front)] + ([_normalize_photo(back)] if back else [])
     try:
         return pipeline.run(photos, currency, language, pipeline.Sources(catalog_db, store, visual_index))
@@ -214,9 +224,9 @@ def delete_item(item_id: int):
 
 
 @app.get("/uploads/{name}")
-def photo(name: str):
-    """Photos of the user's coins (exempt from the app token, see check_token)."""
-    data = store.photo(name)
+def photo(name: str, size: str = "full"):
+    """Photos of the user's coins (exempt from the app token, see check_token). `size=thumb` for lists."""
+    data = store.photo(name, thumb=size == "thumb")
     if data is None:
         raise HTTPException(404)
     return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})

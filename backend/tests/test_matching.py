@@ -11,6 +11,10 @@ class FakeIndex:
     def __len__(self):
         return 1
 
+    @staticmethod
+    def query(photo):
+        return photo
+
     def scores(self, photos, ids):
         return {i: s for i, s in self._scores.items() if i in ids}
 

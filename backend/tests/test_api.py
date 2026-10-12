@@ -220,3 +220,14 @@ def test_collection_total_counts_unpriced_coins_at_their_metal_value(monkeypatch
     assert t["total_low"] == round(480 + 2 * melt, 2)
     for i in ids:
         client.delete(f"/collection/{i}")
+
+
+def test_photo_thumbnail(monkeypatch, fake_vision):
+    buf = io.BytesIO()
+    Image.new("RGB", (1200, 900), "gold").save(buf, "JPEG")
+    est = client.post("/estimate", files={"front": ("f.jpg", buf.getvalue(), "image/jpeg")}).json()
+    name = est["photos"]["front"]
+    full = Image.open(io.BytesIO(client.get(f"/uploads/{name}").content))
+    thumb = Image.open(io.BytesIO(client.get(f"/uploads/{name}?size=thumb").content))
+    assert full.size == (1200, 900)
+    assert max(thumb.size) == main.THUMB_SIDE

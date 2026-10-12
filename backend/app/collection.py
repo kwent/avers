@@ -5,6 +5,7 @@ hosted API, where functions have no persistent disk). Photos live in the databas
 """
 
 import json
+import logging
 import os
 import sqlite3
 import threading
@@ -13,6 +14,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from app.db import BACKEND, ROOT
+
+log = logging.getLogger(__name__)
 
 COLLECTION_DB = BACKEND / os.environ.get("COLLECTION_DB", ROOT / "data" / "collection.sqlite")
 
@@ -39,7 +42,14 @@ COMMON_TABLES = """
 CREATE TABLE IF NOT EXISTS daily_usage (day TEXT PRIMARY KEY, estimates INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS api_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, n INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS photos_created ON photos (created_at);
 """
+# Columns added after the first release: (table, column, sqlite type, postgres type)
+ADDED_COLUMNS = [("photos", "thumb", "BLOB", "BYTEA"), ("photos", "embedding", "BLOB", "BYTEA")]
+# Everything but the saved /estimate payload, for lists
+ITEM_LIST_COLUMNS = "id, created_at, updated_at, " + ", ".join(
+    line.split()[0] for line in ITEM_COLUMNS.strip().splitlines() if not line.strip().startswith("estimate")
+)
 
 SQLITE_SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS items (
@@ -51,7 +61,9 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE TABLE IF NOT EXISTS photos (
   name TEXT PRIMARY KEY,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  data BLOB NOT NULL
+  data BLOB NOT NULL,
+  thumb BLOB,                     -- small JPEG for lists
+  embedding BLOB                  -- visual query vectors (float32), so a re-price does not re-run the model
 );
 {COMMON_TABLES}"""
 
@@ -65,7 +77,9 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE TABLE IF NOT EXISTS photos (
   name TEXT PRIMARY KEY,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  data BYTEA NOT NULL
+  data BYTEA NOT NULL,
+  thumb BYTEA,
+  embedding BYTEA
 );
 {COMMON_TABLES}"""
 
@@ -88,13 +102,21 @@ class Store:
         self.postgres = bool(database_url)
         self._url = database_url
         self._lock = threading.Lock()
+        self._pg = None  # one Postgres connection per instance, reused across requests (Fluid compute)
         if self.postgres:
-            with self._connect() as db:
+            with self._db() as db:
                 db.execute(POSTGRES_SCHEMA)
+                for table, column, _, pg_type in ADDED_COLUMNS:
+                    db.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {pg_type}")
         else:
             sqlite_path.parent.mkdir(parents=True, exist_ok=True)
             self._sqlite = sqlite3.connect(sqlite_path, check_same_thread=False)
             self._sqlite.row_factory = sqlite3.Row
+            for table, column, sqlite_type, _ in ADDED_COLUMNS:  # before the schema: its index needs them
+                if self._sqlite.execute(f"SELECT 1 FROM pragma_table_info('{table}')").fetchone():
+                    known = {r["name"] for r in self._sqlite.execute(f"PRAGMA table_info({table})")}
+                    if column not in known:
+                        self._sqlite.execute(f"ALTER TABLE {table} ADD COLUMN {column} {sqlite_type}")
             self._sqlite.executescript(SQLITE_SCHEMA)
 
     def _connect(self):
@@ -106,23 +128,36 @@ class Store:
     @contextmanager
     def _db(self):
         if self.postgres:
-            with self._connect() as db:
-                yield db
+            with self._lock:
+                if self._pg is None or self._pg.closed or self._pg.broken:
+                    self._pg = self._connect()
+                yield self._pg
         else:
             with self._lock:
                 yield self._sqlite
                 self._sqlite.commit()
 
+    def _run(self, sql: str, params: tuple | list, fetch: bool) -> list[dict] | None:
+        for attempt in (1, 2):
+            try:
+                with self._db() as db:
+                    cur = db.execute(self._sql(sql), params)
+                    return [dict(r) for r in cur.fetchall()] if fetch else None
+            except Exception as e:
+                # a connection the server dropped while idle: reconnect once (psycopg marks it closed/broken)
+                if attempt == 2 or not self.postgres or not (self._pg is None or self._pg.closed or self._pg.broken):
+                    raise
+                log.warning("collection database connection lost, reconnecting: %s", e)
+        return None
+
     def _sql(self, sql: str) -> str:
         return sql.replace("?", "%s") if self.postgres else sql
 
     def query(self, sql: str, params: tuple | list = ()) -> list[dict]:
-        with self._db() as db:
-            return [dict(r) for r in db.execute(self._sql(sql), params).fetchall()]
+        return self._run(sql, params, fetch=True)
 
     def execute(self, sql: str, params: tuple | list = ()) -> None:
-        with self._db() as db:
-            db.execute(self._sql(sql), params)
+        self._run(sql, params, fetch=False)
 
     # --- items
 
@@ -155,7 +190,7 @@ class Store:
         return self.query(sql, params)[0]["id"]
 
     def items(self) -> list[dict]:
-        return self.query("SELECT * FROM items ORDER BY created_at DESC, id DESC")
+        return self.query(f"SELECT {ITEM_LIST_COLUMNS} FROM items ORDER BY created_at DESC, id DESC")
 
     def get(self, item_id: int) -> dict | None:
         rows = self.query("SELECT * FROM items WHERE id = ?", (item_id,))
@@ -227,8 +262,15 @@ class Store:
 
     # --- photos
 
-    def put_photo(self, name: str, data: bytes) -> None:
-        self.execute("INSERT INTO photos (name, data) VALUES (?, ?)", (name, data))
+    def put_photo(self, name: str, data: bytes, thumb: bytes | None = None) -> None:
+        self.execute("INSERT INTO photos (name, data, thumb) VALUES (?, ?, ?)", (name, data, thumb))
+
+    def set_embedding(self, name: str, vectors: bytes) -> None:
+        self.execute("UPDATE photos SET embedding = ? WHERE name = ?", (vectors, name))
+
+    def embedding(self, name: str) -> bytes | None:
+        rows = self.query("SELECT embedding FROM photos WHERE name = ?", (name,))
+        return bytes(rows[0]["embedding"]) if rows and rows[0]["embedding"] is not None else None
 
     def prune_photos(self, older_than: timedelta = timedelta(days=2)) -> None:
         """Forget photos of estimates that were never saved to the collection."""
@@ -240,9 +282,12 @@ class Store:
             (cutoff,),
         )
 
-    def photo(self, name: str) -> bytes | None:
-        rows = self.query("SELECT data FROM photos WHERE name = ?", (name,))
-        return bytes(rows[0]["data"]) if rows else None
+    def photo(self, name: str, thumb: bool = False) -> bytes | None:
+        """The photo, or its small version when asked and there is one."""
+        rows = self.query("SELECT data, thumb FROM photos WHERE name = ?", (name,))
+        if not rows:
+            return None
+        return bytes((thumb and rows[0]["thumb"]) or rows[0]["data"])
 
 
 def connect() -> Store:

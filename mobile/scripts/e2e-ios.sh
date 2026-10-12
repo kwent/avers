@@ -73,7 +73,7 @@ api_data="$(mktemp -d)"
   cd ../backend
   # 1851 read as 1861, so the estimate flow answers the year question (and no Numista: catalog suggestions only)
   COLLECTION_DB="$api_data/collection.sqlite" E2E_MISREAD_YEARS="1851:1861" NUMISTA_API_KEY="" \
-    exec uv run --extra vision uvicorn app.main:app --host 127.0.0.1 --port "$port"
+    exec uv run --extra vision uvicorn tests.e2e_api:app --host 127.0.0.1 --port "$port"
 ) >"$api_data/api.log" 2>&1 &
 pids+=($!)
 until curl -sf "http://localhost:$port/health" >/dev/null; do sleep 1; done

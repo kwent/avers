@@ -27,6 +27,7 @@ from app.db import BACKEND, IMAGES_DIR, ROOT, connect
 MODEL = "facebook/dinov2-small"
 ONNX_PATH = BACKEND / os.environ.get("VISION_ONNX", ROOT / "data" / "models" / "dinov2-small.onnx")
 ROTATIONS = (0, 45, 90, 135, 180, 225, 270, 315)
+DIM = 768  # CLS + mean patch token of dinov2-small (384 each)
 BATCH = 64
 # DINOv2 preprocessing (transformers BitImageProcessor): shortest edge 256 (bicubic), centre crop 224, ImageNet norm
 RESIZE, CROP = 256, 224
@@ -94,49 +95,43 @@ def rotations(img: Image.Image) -> list[Image.Image]:
 
 
 class Index:
-    """All catalog embeddings in memory (≈ 19k × 768 float32 ≈ 60 MB)."""
+    """Catalog embeddings, read from the catalog per query: only the few candidates a match weighs, so nothing is
+    loaded at startup. Query vectors (a photo at every rotation) are computed once and can be kept for a re-price."""
 
     def __init__(self, db: sqlite3.Connection):
+        self.db = db
         try:
-            rows = db.execute("SELECT coin_id, vector FROM coin_embeddings WHERE model = ?", (MODEL,)).fetchall()
+            self.size = db.execute("SELECT COUNT(*) FROM coin_embeddings WHERE model = ?", (MODEL,)).fetchone()[0]
         except sqlite3.OperationalError:  # catalog without an index yet
-            rows = []
-        self.coin_ids = np.array([r[0] for r in rows], dtype=np.int64)
-        self.matrix = np.stack([np.frombuffer(r[1], dtype=np.float32) for r in rows]) if rows else None
+            self.size = 0
 
     def __len__(self) -> int:
-        return len(self.coin_ids)
-
-    def _per_photo_best(self, photos: list[bytes], mask: np.ndarray | None = None) -> list[dict[int, float]]:
-        """For each user photo: {coin_id: best similarity over that coin's images and the query rotations}."""
-        ids, matrix = self.coin_ids, self.matrix
-        if mask is not None:
-            ids, matrix = ids[mask], matrix[mask]
-        out = []
-        for data in photos:
-            queries = embed(rotations(square(Image.open(io.BytesIO(data)))))
-            sims = (queries @ matrix.T).max(axis=0)  # best rotation per catalog image
-            best: dict[int, float] = {}
-            for coin_id, sim in zip(ids.tolist(), sims.tolist(), strict=True):
-                if sim > best.get(coin_id, -1.0):
-                    best[coin_id] = sim
-            out.append(best)
-        return out
+        return self.size
 
     @staticmethod
-    def _combine(per_photo: list[dict[int, float]]) -> dict[int, float]:
-        """Score = mean over the user's photos of each coin's best image similarity."""
-        coins = set().union(*per_photo) if per_photo else set()
-        return {c: float(np.mean([p.get(c, 0.0) for p in per_photo])) for c in coins}
+    def query(photo: bytes) -> np.ndarray:
+        """A user photo at every rotation (a coin can be shot at any angle), (len(ROTATIONS), 768) float32."""
+        return embed(rotations(square(Image.open(io.BytesIO(photo)))))
 
-    def scores(self, photos: list[bytes], coin_ids: list[int]) -> dict[int, float]:
-        """Similarity of the user's photos to specific catalog coins (coins without images are left out)."""
-        if self.matrix is None or not photos or not coin_ids:
+    def scores(self, queries: list[np.ndarray], coin_ids: list[int]) -> dict[int, float]:
+        """Similarity of the user's photos to specific catalog coins (coins without images are left out): for each
+        photo, a coin's best image at the best rotation; then the mean over the photos."""
+        if not queries or not coin_ids:
             return {}
-        mask = np.isin(self.coin_ids, coin_ids)
-        if not mask.any():
+        marks = ", ".join("?" * len(coin_ids))
+        sql = f"SELECT coin_id, vector FROM coin_embeddings WHERE model = ? AND coin_id IN ({marks})"
+        rows = self.db.execute(sql, [MODEL, *coin_ids]).fetchall()
+        if not rows:
             return {}
-        return self._combine(self._per_photo_best(photos, mask))
+        ids = [r[0] for r in rows]
+        matrix = np.stack([np.frombuffer(r[1], dtype=np.float32) for r in rows])
+        per_photo = []
+        for q in queries:
+            best: dict[int, float] = {}
+            for coin_id, sim in zip(ids, (q @ matrix.T).max(axis=0).tolist(), strict=True):
+                best[coin_id] = max(sim, best.get(coin_id, -1.0))
+            per_photo.append(best)
+        return {c: float(np.mean([p.get(c, 0.0) for p in per_photo])) for c in set(ids)}
 
 
 def _torch_model():

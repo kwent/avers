@@ -32,6 +32,7 @@ def fake_numista(monkeypatch):
 
     monkeypatch.setattr(numista, "KEY", "test")
     monkeypatch.setattr(numista, "_get", get)
+    monkeypatch.setattr(numista, "_lists", {})
     return asked
 
 

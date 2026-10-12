@@ -98,11 +98,12 @@ def candidates(db: sqlite3.Connection, coin: CoinIdentification) -> tuple[list[s
     return rows, criteria
 
 
-def find(db: sqlite3.Connection, coin: CoinIdentification, photos: list[bytes], index=None) -> Match | None:
+def find(db: sqlite3.Connection, coin: CoinIdentification, queries: list, index=None) -> Match | None:
+    """queries: the photos' query vectors (visual.Index.query), when there is a visual index."""
     rows, criteria = candidates(db, coin)
     if not rows:
         return None
-    sims = index.scores(photos, [r["id"] for r in rows]) if index is not None and len(index) else {}
+    sims = index.scores(queries, [r["id"] for r in rows]) if index is not None and len(index) and queries else {}
     if sims:
         best_id = max(sims, key=sims.get)
         best = sims[best_id]

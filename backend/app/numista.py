@@ -59,9 +59,23 @@ def _get(store, path: str, params: dict, max_age: timedelta) -> dict | list | No
     return data
 
 
+_lists: dict[str, tuple[datetime, dict]] = {}
+
+
+def _list(store, path: str, params: dict) -> dict:
+    """A whole Numista list (catalogues, issuers): parsed once per instance, not on every estimate."""
+    hit = _lists.get(path)
+    if hit and datetime.now(UTC) - hit[0] < FACTS_AGE:
+        return hit[1]
+    data = _get(store, path, params, FACTS_AGE)
+    if data:
+        _lists[path] = (datetime.now(UTC), data)
+    return data or {}
+
+
 def _gadoury_catalogue(store) -> int | None:
     """Numista's ID for Gadoury "Monnaies françaises" (not his colonial, necessity or Olympic catalogues)."""
-    data = _get(store, "/catalogues", {}, FACTS_AGE) or {}
+    data = _list(store, "/catalogues", {})
     for c in data.get("catalogues", []):
         if "gadoury" in plain(c.get("author", "")) and plain(c.get("title", "")).startswith("monnaies francaises"):
             return c["id"]
@@ -72,7 +86,7 @@ def _issuer(store, country_name: str | None) -> str | None:
     """Numista's issuer code for a country named in French ("France" -> "france", "Italie" -> "italy")."""
     if not country_name:
         return None
-    data = _get(store, "/issuers", {"lang": "fr"}, FACTS_AGE) or {}
+    data = _list(store, "/issuers", {"lang": "fr"})
     name = plain(country_name)
     return next((i["code"] for i in data.get("issuers", []) if plain(i.get("name", "")) == name), None)
 
