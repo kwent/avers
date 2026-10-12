@@ -368,42 +368,49 @@ export function Metal({ metal, name }: { metal: string; name: string }) {
   );
 }
 
-/** A small segmented control (sorting). */
-export function Segmented<K extends string>({
-  options,
-  value,
-  onChange,
+/** A toggle chip for filters and sorting: an optional metal swatch or icon, a label, an optional count. */
+export function Chip({
   label,
+  selected,
+  onPress,
+  swatch,
+  icon,
+  count,
+  testID,
 }: {
-  options: { key: K; label: string }[];
-  value: K;
-  onChange: (key: K) => void;
   label: string;
+  selected: boolean;
+  onPress: () => void;
+  swatch?: string;
+  icon?: IconName;
+  count?: number;
+  testID?: string;
 }) {
   return (
-    <View
-      className="flex-row gap-[3px] rounded-full border-2 border-gold p-[3px]"
-      accessibilityRole="radiogroup"
-      accessibilityLabel={label}
+    <Press
+      testID={testID}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={count != null ? `${label}, ${count}` : label}
+      className={cn(
+        'min-h-[56px] flex-row items-center gap-2 rounded-full border-2 px-4',
+        selected ? 'border-gold bg-gold' : 'border-line bg-surface',
+      )}
     >
-      {options.map((o) => {
-        const on = o.key === value;
-        return (
-          <Pressable
-            key={o.key}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: on }}
-            onPress={() => onChange(o.key)}
-            onPressIn={tick}
-            className={cn('min-h-[44px] flex-1 items-center justify-center rounded-full px-3', on && 'bg-gold')}
-          >
-            <T variant="smallStrong" tone={on ? 'onAccent' : 'accent'}>
-              {o.label}
-            </T>
-          </Pressable>
-        );
-      })}
-    </View>
+      {swatch && (
+        <View className="h-[16px] w-[16px] rounded-full border border-black/15" style={{ backgroundColor: swatch }} />
+      )}
+      <T variant="smallStrong" tone={selected ? 'onAccent' : 'ink'}>
+        {label}
+      </T>
+      {count != null && (
+        <T variant="small" tone={selected ? 'onAccent' : 'soft'}>
+          {count}
+        </T>
+      )}
+      {icon && <Ionicons name={icon} size={16} color={selected ? colors['on-gold'] : colors.gold} />}
+    </Press>
   );
 }
 

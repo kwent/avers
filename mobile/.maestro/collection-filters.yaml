@@ -1,0 +1,100 @@
+# Collection search, metal and grade filters, sorting. Seeds four coins through the test API. No AI call.
+appId: host.exp.Exponent
+name: Collection filters
+tags: [smoke]
+---
+- runScript:
+    file: scripts/seed-collection.js
+    env:
+      API_URL: ${API_URL}
+- runFlow: subflows/open-app.yaml
+- tapOn:
+    id: "tab-collection"
+- extendedWaitUntil:
+    visible: "4 pièces"
+    timeout: 15000
+- scrollUntilVisible: # the filters sit below the totals; bring them up with the first coins
+    element:
+      id: "grade-SUP"
+    centerElement: true
+
+# Metal: silver keeps the écu and the Semeuse
+- tapOn:
+    id: "metal-silver"
+- scrollUntilVisible:
+    element: "2 sur 4 pièces"
+- scrollUntilVisible:
+    element: ".*Semeuse.*"
+- assertNotVisible: ".*20 Francs Napoléon.*"
+- scrollUntilVisible:
+    element: "Effacer les filtres"
+    direction: UP
+- tapOn: "Effacer les filtres"
+- assertNotVisible: "2 sur 4 pièces"
+
+# Grade
+- scrollUntilVisible:
+    element:
+      id: "grade-SUP"
+    direction: UP
+    centerElement: true
+- tapOn:
+    id: "grade-SUP"
+- scrollUntilVisible:
+    element: "1 sur 4 pièces"
+- scrollUntilVisible:
+    element: ".*20 Francs Napoléon.*"
+- scrollUntilVisible:
+    element: "Effacer les filtres"
+    direction: UP
+- tapOn: "Effacer les filtres"
+
+# Search ignores accents and case; a metal filter on top narrows to nothing
+- scrollUntilVisible:
+    element:
+      id: "collection-search"
+    direction: UP
+    centerElement: true
+- tapOn:
+    id: "collection-search"
+- inputText: "ecu"
+- hideKeyboard
+- scrollUntilVisible:
+    element: "1 sur 4 pièces"
+- scrollUntilVisible:
+    element: ".*Écu de Louis XV.*"
+- scrollUntilVisible:
+    element:
+      id: "metal-gold"
+    direction: UP
+    centerElement: true
+- tapOn:
+    id: "metal-gold"
+- scrollUntilVisible:
+    element: "Aucune pièce ne correspond."
+- scrollUntilVisible:
+    element: "Effacer les filtres"
+    direction: UP
+- tapOn: "Effacer les filtres"
+- scrollUntilVisible:
+    element: ".*10 Centimes.*"
+
+# Sorting: tapping the chosen sort flips its direction
+- scrollUntilVisible:
+    element:
+      id: "sort-name"
+    direction: UP
+    centerElement: true
+- tapOn:
+    id: "sort-name"
+- assertVisible: "Nom, croissant"
+- tapOn:
+    id: "sort-name"
+- assertVisible: "Nom, décroissant"
+- tapOn:
+    id: "sort-value"
+
+- runScript:
+    file: scripts/clear-collection.js
+    env:
+      API_URL: ${API_URL}

@@ -117,8 +117,9 @@ CI runs both on every push and pull request.
 ### End-to-end tests (iOS Simulator)
 
 [Maestro](https://maestro.dev) flows in `mobile/.maestro/` drive the app in Expo Go: a smoke test, the language
-switch, a full journey (front and back photos → real estimate → copy → save → collection total → delete) and a
-non-coin photo that must be refused.
+switch, a full journey (front and back photos → real estimate → copy → save → collection total → delete), a
+non-coin photo that must be refused, and the collection's search, metal and grade filters and sorting (four coins
+seeded through the test API, no AI call).
 
 ```bash
 brew install mobile-dev-inc/tap/maestro          # needs a JDK (e.g. openjdk@21)
