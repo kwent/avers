@@ -119,28 +119,39 @@ def find(db: sqlite3.Connection, coin: CoinIdentification, photos: list[bytes], 
     return Match(row, rows, 0.8, criteria)
 
 
-def plain(text: str) -> str:
+def plain(text: str | None) -> str:
     """Lower case without accents, for loose name matching ("CÉRÉS" ~ "Cérès")."""
-    return "".join(c for c in unicodedata.normalize("NFD", text.lower()) if not unicodedata.combining(c))
+    return "".join(c for c in unicodedata.normalize("NFD", (text or "").lower()) if not unicodedata.combining(c))
+
+
+def type_words(coin: CoinIdentification) -> list[str]:
+    """Words of the type name ("Cérès", "Napoléon III") to recognise the type in catalog listing names."""
+    return [w for w in plain(coin.type_name).split() if len(w) >= 4]
+
+
+def type_rows(db: sqlite3.Connection, coin: CoinIdentification) -> list[sqlite3.Row]:
+    """Catalog listings of any year with the coin's country, face value and metal: its type and its look-alikes."""
+    faces = face_values(coin)
+    if coin.status != "identified" or not coin.country_iso or not faces:
+        return []
+    rows = db.execute(
+        "SELECT year, name, metal, price FROM coins"
+        f" WHERE country_iso = ? AND face_value IN ({', '.join('?' * len(faces))})",
+        [coin.country_iso.upper(), *faces],
+    ).fetchall()
+    metals = CATALOG_METALS.get(coin.metal, [])
+    return [r for r in rows if not metals or not r["metal"] or r["metal"] in metals]
 
 
 def type_refs(db: sqlite3.Connection, coin: CoinIdentification, limit: int = 3) -> list[str]:
     """Gadoury numbers of catalog listings of the coin's type (same country, face value and metal, the type named in
     the listing), nearest years first, as "G. 1012". Lets a reading without a reference, or with a misread year, be
     looked up by number elsewhere."""
-    faces = face_values(coin)
-    words = [w for w in plain(coin.type_name or "").split() if len(w) >= 4]
-    if coin.status != "identified" or not coin.country_iso or not faces or not words:
+    words = type_words(coin)
+    if not words:
         return []
-    rows = db.execute(
-        f"SELECT year, name, metal FROM coins WHERE country_iso = ? AND face_value IN ({', '.join('?' * len(faces))})",
-        [coin.country_iso.upper(), *faces],
-    ).fetchall()
-    metals = CATALOG_METALS.get(coin.metal, [])
     ranked: dict[str, int] = {}
-    for r in rows:
-        if metals and r["metal"] and r["metal"] not in metals:
-            continue
+    for r in type_rows(db, coin):
         if not any(w in plain(r["name"]) for w in words):
             continue
         gap = abs((r["year"] or 0) - (coin.year or 0)) if coin.year else 0

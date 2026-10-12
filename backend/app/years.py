@@ -4,8 +4,7 @@ never struck, the app asks the user which year the coin shows, suggesting the li
 import sqlite3
 
 from app.identify import CoinIdentification
-from app.matching import face_values, plain
-from app.metals import CATALOG_METALS
+from app.matching import plain, type_rows, type_words
 
 # Digits a worn or blurry date mixes up, most likely first.
 CONFUSABLE_DIGITS = ["56", "38", "68", "08", "06", "17", "35", "69", "09", "47"]
@@ -25,20 +24,13 @@ def catalog_suggestions(db: sqlite3.Connection, coin: CoinIdentification, limit:
     """Catalogued years the coin may really be from, when the year read has no listing: same country, face value
     and metal, and one commonly misread digit away (a worn 5 taken for a 6). Years whose listings name the coin
     type come first."""
-    faces = face_values(coin)
-    if coin.status != "identified" or not coin.country_iso or not coin.year or not faces:
+    if not coin.year:
         return []
-    rows = db.execute(
-        f"SELECT year, name, metal FROM coins WHERE country_iso = ? AND face_value IN ({', '.join('?' * len(faces))})"
-        " AND year IS NOT NULL AND price > 0",
-        [coin.country_iso.upper(), *faces],
-    ).fetchall()
-    metals = CATALOG_METALS.get(coin.metal, [])
-    words = [w for w in plain(coin.type_name or "").split() if len(w) >= 4]
+    words = type_words(coin)
     ranked: dict[int, tuple[int, int]] = {}
-    for r in rows:
-        rank = misread_rank(coin.year, r["year"])
-        if rank is None or (metals and r["metal"] and r["metal"] not in metals):
+    for r in type_rows(db, coin):
+        rank = misread_rank(coin.year, r["year"]) if r["year"] and (r["price"] or 0) > 0 else None
+        if rank is None:
             continue
         typed = 0 if any(w in plain(r["name"]) for w in words) else 1
         ranked[r["year"]] = min(ranked.get(r["year"], (2, 99)), (typed, rank))
@@ -53,9 +45,7 @@ def check(catalog_db: sqlite3.Connection, coin: CoinIdentification, ref: dict | 
     if coin.year in numista_years:
         return None
     pool = set(numista_years) | set(catalog_suggestions(catalog_db, coin))
-    confusable = sorted(
-        (y for y in pool if misread_rank(coin.year, y) is not None),
-        key=lambda y: misread_rank(coin.year, y),
-    )
-    nearest = sorted((y for y in pool if y not in confusable), key=lambda y: abs(y - coin.year))
+    ranks = {y: misread_rank(coin.year, y) for y in pool}
+    confusable = sorted((y for y in pool if ranks[y] is not None), key=ranks.get)
+    nearest = sorted((y for y in pool if ranks[y] is None), key=lambda y: abs(y - coin.year))
     return {"read": coin.year, "suggestions": (confusable + nearest)[:3]}

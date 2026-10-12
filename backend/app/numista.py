@@ -8,7 +8,6 @@ Free plan: 2000 requests a month. Answers are cached in the collection store, so
 import json
 import logging
 import os
-import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 
 from app.http import SSL_CTX, UA
 from app.identify import CoinIdentification
-from app.matching import plain
+from app.matching import gadoury_refs, plain
 
 log = logging.getLogger(__name__)
 
@@ -86,7 +85,7 @@ def find_type(store, coin: CoinIdentification) -> dict | None:
     """The Numista type of a coin read from photos: by Gadoury number when the reading has one, else by text
     (denomination + type name, same country and face value). A misread year may fall outside the type's years, so
     the year only ranks the candidates."""
-    refs = [m.group(1) for r in coin.catalog_refs if (m := re.search(r"\bG(?:ad(?:oury)?)?\.?\s*(\d+[a-z]?)", r, re.I))]
+    refs = sorted(gadoury_refs(coin.catalog_refs))
     catalogue = _gadoury_catalogue(store) if refs else None
     found = []
     if catalogue:

@@ -11,6 +11,7 @@ from datetime import date
 
 GRADES = ["B", "TB", "TTB", "SUP", "SPL", "FDC"]
 RESALE_FACTOR = 0.8  # dealers buy ~20% under their selling price
+MELT_PREMIUM = 1.05  # a coin never sells under its metal value plus a small premium
 TROY_OZ_G = 31.1034768
 
 # Approximate LBMA annual averages, USD/oz (2025 is approximate). Used only to strip the metal content out of
@@ -116,7 +117,7 @@ def price_table(points: list[Point], melt_now: float | None) -> list[GradePrice]
     floor = melt_now or 0.0
     for r in rows:
         if r.retail is not None:
-            r.retail = round(max(r.retail, floor * 1.05), 0)
+            r.retail = round(max(r.retail, floor * MELT_PREMIUM), 0)
             r.resale = round(max(r.retail * RESALE_FACTOR, floor), 0)
     return rows
 
@@ -155,7 +156,7 @@ def estimate(rows: list[GradePrice], grade: str | None, melt_now: float | None) 
             grade=grade,
             value_low=round(melt_now, 0),
             value_high=higher.resale,
-            retail_low=round(melt_now * 1.05, 0),
+            retail_low=round(melt_now * MELT_PREMIUM, 0),
             retail_high=higher.retail,
         )
     below = rows[i - 1].retail if i > 0 and rows[i - 1].retail else row.retail
