@@ -8,7 +8,7 @@ import { Estimate } from '../lib/api';
 import { confidence, gradeLabel, metalName, money, number, range } from '../lib/format';
 import { colors } from '../theme';
 import { CopyAllButton, CopyProvider, CopyRow } from './Copy';
-import { CatalogSection, PricesUsed, PriceTable } from './Market';
+import { CatalogSection, priceSources, PriceTable } from './Market';
 import { Band, CoinWell, Metal, Notice, Row, Section, T, Tone } from './ui';
 
 type Field = { id: string; label: string; value: string };
@@ -219,9 +219,9 @@ function EstimateContent({
             grade={coin.grade}
             currency={cur}
             explanation={explanation(est, m, locale)}
+            sources={priceSources(est, m, locale)}
           />
         )}
-        <PricesUsed est={est} />
 
         {est.melt && (
           <Section

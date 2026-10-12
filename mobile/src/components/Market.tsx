@@ -1,6 +1,8 @@
 import * as Linking from 'expo-linking';
+import { ReactNode } from 'react';
 import { View } from 'react-native';
 import { useI18n } from '../i18n';
+import type { Messages } from '../i18n/fr';
 import { Comparable, Estimate, GradePrice } from '../lib/api';
 import { gradeName, money, sourceLabel } from '../lib/format';
 import { CoinWell, cn, Row, Section, T } from './ui';
@@ -11,11 +13,14 @@ export function PriceTable({
   grade,
   currency,
   explanation,
+  sources = [],
 }: {
   rows: GradePrice[];
   grade: string;
   currency: string;
   explanation: string;
+  /** the prices the table rests on (PriceSources), listed under it */
+  sources?: ReactNode[];
 }) {
   const { m, locale } = useI18n();
   const known = rows.filter((r) => r.retail != null);
@@ -28,7 +33,10 @@ export function PriceTable({
   }
   const tr = 'flex-row items-center gap-2 px-4';
   return (
-    <Section title={m.estimate.whyTitle} footer={`${explanation} ${m.estimate.priceNote}`}>
+    <Section
+      title={m.estimate.whyTitle}
+      footer={`${explanation} ${m.estimate.priceNote}${sources.length ? ` ${m.estimate.pricesUsedNote}` : ''}`}
+    >
       <View
         className={cn(tr, 'min-h-[40px]')}
         accessibilityElementsHidden
@@ -69,67 +77,68 @@ export function PriceTable({
           </View>
         );
       })}
+      {sources.length > 0 && (
+        <View key="sources-title" className="px-4 pb-1 pt-4">
+          <T variant="smallStrong" tone="soft" accessibilityRole="header">
+            {m.estimate.pricesUsed}
+          </T>
+        </View>
+      )}
+      {sources}
     </Section>
   );
 }
 
-/** Every price the estimate rests on (with its value today), then Numista's for comparison. */
-export function PricesUsed({ est }: { est: Estimate }) {
-  const { m, locale } = useI18n();
+/** Rows for every price the estimate rests on (with its value today), then Numista's for comparison. */
+export function priceSources(est: Estimate, m: Messages, locale: string): ReactNode[] {
   const v = est.valuation;
-  const points = v?.points ?? [];
   const grade = est.identification.grade;
   const numista = v?.source !== 'numista' ? est.numista : null;
   const numistaPrice = numista?.prices?.[grade];
-  if (!points.length && numistaPrice == null) return null;
-  return (
-    <Section title={m.estimate.pricesUsed} footer={m.estimate.pricesUsedNote}>
-      {points.map((p, i) => {
-        const when =
-          p.source === 'numista'
-            ? null
-            : p.kind === 'listing'
-              ? m.estimate.inStock
-              : m.estimate.sold(String(p.year ?? ''));
-        const moved = Math.abs(p.adjusted - p.price) > p.price * 0.01;
-        return (
-          <Row
-            key={`${p.url}-${p.grade}-${i}`}
-            accessibilityRole={p.url ? 'link' : undefined}
-            onPress={p.url ? () => Linking.openURL(p.url!) : undefined}
-            chevron={!!p.url}
-            stacked
-            label={[p.grade, when, sourceLabel(p.source)].filter(Boolean).join(', ')}
-            value={
-              <View className="gap-0.5">
-                {!!p.name && <T numberOfLines={2}>{p.name}</T>}
-                <T variant="bodyStrong" tone="gold">
-                  {money(p.price, est.currency, locale)}
-                  {moved ? `  →  ${m.estimate.today(money(p.adjusted, est.currency, locale))}` : ''}
-                </T>
-              </View>
-            }
-          />
-        );
-      })}
-      {numista && numistaPrice != null && (
-        <Row
-          testID="numista-compare"
-          accessibilityRole="link"
-          onPress={() => Linking.openURL(numista.url)}
-          chevron
-          stacked
-          label={m.estimate.numistaCompare(grade)}
-          value={
-            <View className="gap-0.5">
-              {!!numista.title && <T numberOfLines={2}>{numista.title}</T>}
-              <T variant="bodyStrong">{money(numistaPrice, est.currency, locale)}</T>
-            </View>
-          }
-        />
-      )}
-    </Section>
-  );
+  const rows: ReactNode[] = (v?.points ?? []).map((p, i) => {
+    const when =
+      p.source === 'numista' ? null : p.kind === 'listing' ? m.estimate.inStock : m.estimate.sold(String(p.year ?? ''));
+    const moved = Math.abs(p.adjusted - p.price) > p.price * 0.01;
+    return (
+      <Row
+        key={`point-${i}`}
+        accessibilityRole={p.url ? 'link' : undefined}
+        onPress={p.url ? () => Linking.openURL(p.url!) : undefined}
+        chevron={!!p.url}
+        stacked
+        label={[p.grade, when, sourceLabel(p.source)].filter(Boolean).join(', ')}
+        value={
+          <View className="gap-0.5">
+            {!!p.name && <T numberOfLines={2}>{p.name}</T>}
+            <T variant="bodyStrong" tone="gold">
+              {money(p.price, est.currency, locale)}
+              {moved ? `  →  ${m.estimate.today(money(p.adjusted, est.currency, locale))}` : ''}
+            </T>
+          </View>
+        }
+      />
+    );
+  });
+  if (numista && numistaPrice != null) {
+    rows.push(
+      <Row
+        key="numista-compare"
+        testID="numista-compare"
+        accessibilityRole="link"
+        onPress={() => Linking.openURL(numista.url)}
+        chevron
+        stacked
+        label={m.estimate.numistaCompare(grade)}
+        value={
+          <View className="gap-0.5">
+            {!!numista.title && <T numberOfLines={2}>{numista.title}</T>}
+            <T variant="bodyStrong">{money(numistaPrice, est.currency, locale)}</T>
+          </View>
+        }
+      />,
+    );
+  }
+  return rows;
 }
 
 /** The catalog entry the coin was matched to, then the comparable listings. */
