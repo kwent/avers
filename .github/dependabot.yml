@@ -23,8 +23,9 @@ updates:
     groups:
       mobile:
         patterns: ["*"]
-    # The Expo SDK pins React, React Native, native modules and TypeScript to tested versions: only patch releases
-    # come through here; minor/major bumps arrive with an SDK upgrade (`npx expo install expo@<sdk> --fix`).
+    # The Expo SDK pins React, React Native, native modules and TypeScript to exact tested versions (expo-doctor fails
+    # on any other): those only move with `npx expo install --fix`. Expo packages get their patch releases here;
+    # minor/major bumps arrive with an SDK upgrade (`npx expo install expo@<sdk> --fix`).
     ignore:
       - dependency-name: "expo"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
@@ -33,19 +34,12 @@ updates:
       - dependency-name: "@expo/*"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "react"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "react-dom"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "react-native"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "react-native-*"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "@react-native-async-storage/*"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "typescript"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "@types/react"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       # NativeWind 4 runs on Tailwind 3; Tailwind 4 and its prettier plugin come with a NativeWind upgrade
       - dependency-name: "tailwindcss"
         update-types: ["version-update:semver-major"]
