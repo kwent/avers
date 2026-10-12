@@ -19,6 +19,8 @@ from app.db import connect
 
 MAX_SIDE = 1568  # vision models downsize anything larger anyway
 APP_TOKEN = os.environ.get("APP_TOKEN")  # optional shared secret once exposed beyond the LAN
+# Backstop against abuse of the vision model (a leaked access code): estimates per UTC day, 0 = unlimited.
+MAX_ESTIMATES_PER_DAY = int(os.environ.get("MAX_ESTIMATES_PER_DAY", "100"))
 
 
 def check_token(request: Request, x_app_token: str | None = Header(default=None)):
@@ -82,6 +84,8 @@ def estimate(
 ):
     currency = currency.upper()
     language = language if language in identify.LANGUAGES else identify.DEFAULT_LANGUAGE
+    if MAX_ESTIMATES_PER_DAY and store.count_estimate() > MAX_ESTIMATES_PER_DAY:
+        raise HTTPException(429, "daily estimate limit reached")
     store.prune_photos()
     photos = [_normalize_photo(front)] + ([_normalize_photo(back)] if back else [])
     try:

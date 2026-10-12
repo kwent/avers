@@ -69,10 +69,10 @@ signed in on the phone and in the CLI (`npx expo login`). The server address can
 
 ### Hosting (Vercel)
 
-- **API** (`backend/`, Vercel project `avers-api`): FastAPI on Vercel Functions (Python, Paris region). The catalog
+- **API** (`backend/`, Vercel project `avers-api`): FastAPI on Vercel Functions (Python, Frankfurt region next to the database). The catalog
   ships read-only inside the function, the collection and its photos live in Postgres (Neon, from the Vercel
   Marketplace). `backend/deploy.sh` copies the catalog and the ONNX model into the bundle and deploys; both stay out
-  of git. Environment: `AI_GATEWAY_API_KEY`, `APP_TOKEN`, `DATABASE_URL`, `CORS_ORIGINS`, `COINS_DB=.deploy/catalog.sqlite`,
+  of git. Environment: `AI_GATEWAY_API_KEY`, `APP_TOKEN`, `DATABASE_URL`, `CORS_ORIGINS`, `MAX_ESTIMATES_PER_DAY` (default 100), `COINS_DB=.deploy/catalog.sqlite`,
   `COINS_DB_READONLY=1`, `VISION_ONNX=.deploy/dinov2-small.onnx`.
 - **Web app** (`mobile/`, Vercel project `avers`): the Expo web export, installable from Safari ("Add to Home Screen").
 

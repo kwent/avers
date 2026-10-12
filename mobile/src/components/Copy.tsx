@@ -16,7 +16,7 @@ export function CopyProvider({ children }: { children: ReactNode }) {
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const copy = useCallback((key: string, text: string) => {
     Clipboard.setStringAsync(text).catch(() => {});
-    Haptics.selectionAsync();
+    Haptics.selectionAsync().catch(() => {});
     setCopied(key);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(null), 3000);

@@ -25,7 +25,7 @@ export default function ResultScreen() {
       .then((e) => {
         scan.estimate = e;
         setEst(e);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       })
       .catch((e) => setError(errorText(e, m)));
   };
@@ -39,7 +39,7 @@ export default function ResultScreen() {
     setSaving(true);
     try {
       const item = await addItem(settings, est);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       resetScan();
       router.dismissAll();
       router.push({ pathname: '/item/[id]', params: { id: String(item.id) } });

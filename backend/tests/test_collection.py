@@ -54,3 +54,8 @@ def test_photos_and_pruning(store):
     assert store.photo("kept.jpg") == b"\x00\xffkept"  # saved in the collection
     assert store.photo("stale.jpg") is None  # old estimate never saved
     assert store.photo("fresh.jpg") == b"fresh"  # recent estimate, may still be saved
+
+
+def test_daily_usage_counter(store):
+    store.execute("DELETE FROM daily_usage")
+    assert [store.count_estimate() for _ in range(3)] == [1, 2, 3]

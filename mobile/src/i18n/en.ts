@@ -142,6 +142,9 @@ const en: Messages = {
   errors: {
     unreachable: 'Server unreachable. Check the connection and the address in Settings.',
     http: (status) => `Error ${status}`,
+    badCode: 'Missing or wrong access code. Open the link you received again, or enter the code in Settings.',
+    dailyLimit: 'Daily estimate limit reached. Try again tomorrow.',
+    vision: 'The identification service is not responding. Try again in a moment.',
   },
   metals: {
     gold: 'gold',

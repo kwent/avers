@@ -5,8 +5,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-BACKEND = ROOT / "backend"  # relative paths in the environment are resolved from here
+BACKEND = Path(__file__).resolve().parents[1]  # relative paths in the environment are resolved from here
+ROOT = BACKEND.parent  # repository root (local data/ lives there)
 DB_PATH = BACKEND / os.environ.get("COINS_DB", ROOT / "data" / "coins.sqlite")
 IMAGES_DIR = BACKEND / os.environ.get("COINS_IMAGES", ROOT / "data" / "images")
 

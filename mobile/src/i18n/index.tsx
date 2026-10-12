@@ -50,6 +50,9 @@ export function errorText(e: unknown, m: Messages): string {
   if (e && typeof e === 'object' && 'kind' in e) {
     const err = e as { kind: string; status: number; message: string };
     if (err.kind === 'unreachable') return m.errors.unreachable;
+    if (err.status === 401) return m.errors.badCode;
+    if (err.status === 429) return m.errors.dailyLimit;
+    if (err.status === 502) return m.errors.vision;
     return err.message || m.errors.http(err.status);
   }
   return e instanceof Error ? e.message : String(e);

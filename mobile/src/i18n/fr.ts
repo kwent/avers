@@ -149,6 +149,9 @@ const fr = {
   errors: {
     unreachable: 'Serveur injoignable. Vérifiez la connexion et l’adresse dans Réglages.',
     http: (status: number) => `Erreur ${status}`,
+    badCode: 'Code d’accès manquant ou incorrect. Rouvrez le lien reçu, ou saisissez le code dans Réglages.',
+    dailyLimit: 'Limite d’estimations atteinte pour aujourd’hui. Réessayez demain.',
+    vision: 'Le service d’identification ne répond pas. Réessayez dans un instant.',
   },
   metals: {
     gold: 'or',

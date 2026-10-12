@@ -167,3 +167,10 @@ def test_cors_preflight_for_the_web_app(monkeypatch):
         },
     )
     assert res.status_code == 200 and res.headers["access-control-allow-origin"] == "https://avers.example"
+
+
+def test_daily_estimate_limit(monkeypatch, fake_vision):
+    monkeypatch.setattr(main, "MAX_ESTIMATES_PER_DAY", main.store.count_estimate() + 1)  # one more allowed today
+    post = lambda: client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")})  # noqa: E731
+    assert post().status_code == 200
+    assert post().status_code == 429

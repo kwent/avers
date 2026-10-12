@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS photos (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   data BLOB NOT NULL
 );
+CREATE TABLE IF NOT EXISTS daily_usage (day TEXT PRIMARY KEY, estimates INTEGER NOT NULL);
 """
 
 POSTGRES_SCHEMA = f"""
@@ -61,6 +62,7 @@ CREATE TABLE IF NOT EXISTS photos (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   data BYTEA NOT NULL
 );
+CREATE TABLE IF NOT EXISTS daily_usage (day TEXT PRIMARY KEY, estimates INTEGER NOT NULL);
 """
 
 EDITABLE = {
@@ -186,6 +188,18 @@ class Store:
             (country_iso, year, denomination),
         )
         return int(rows[0]["n"])
+
+    # --- usage
+
+    def count_estimate(self) -> int:
+        """Record one estimate for today (UTC); returns today's total including this one."""
+        day = datetime.now(UTC).strftime("%Y-%m-%d")
+        rows = self.query(
+            "INSERT INTO daily_usage (day, estimates) VALUES (?, 1)"
+            " ON CONFLICT (day) DO UPDATE SET estimates = daily_usage.estimates + 1 RETURNING estimates",
+            (day,),
+        )
+        return int(rows[0]["estimates"])
 
     # --- photos
 

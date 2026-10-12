@@ -1,4 +1,5 @@
 import { File } from 'expo-file-system';
+import { Platform } from 'react-native';
 import { Settings } from './settings';
 
 export type Grade = 'B' | 'TB' | 'TTB' | 'SUP' | 'SPL' | 'FDC' | 'unknown';
@@ -151,11 +152,23 @@ async function request<T>(s: Settings, path: string, init: RequestInit = {}): Pr
 
 export const photoUrl = (s: Settings, name: string | null) => (name ? `${s.apiUrl}/uploads/${name}` : undefined);
 
-export function estimate(s: Settings, front: string, back: string | null, language: string): Promise<Estimate> {
-  // expo/fetch (the global fetch) only takes Blob/File parts, not RN's { uri, name, type } objects
+/**
+ * Add a photo to a multipart form. Native: expo/fetch (the global fetch) only takes Blob/File parts, not RN's
+ * { uri, name, type } objects, so wrap the file. Web: the uri is a blob:/data: URL, read it into a Blob.
+ */
+async function appendPhoto(form: FormData, field: string, uri: string) {
+  if (Platform.OS === 'web') {
+    const blob = await (await fetch(uri)).blob();
+    form.append(field, blob, `${field}.jpg`);
+  } else {
+    form.append(field, new File(uri));
+  }
+}
+
+export async function estimate(s: Settings, front: string, back: string | null, language: string): Promise<Estimate> {
   const form = new FormData();
-  form.append('front', new File(front));
-  if (back) form.append('back', new File(back));
+  await appendPhoto(form, 'front', front);
+  if (back) await appendPhoto(form, 'back', back);
   form.append('currency', s.currency);
   form.append('language', language);
   return request(s, '/estimate', { method: 'POST', body: form });
@@ -165,9 +178,9 @@ export type FrameStatus = 'ok' | 'no_coin' | 'too_dark' | 'off_center' | 'too_sm
 
 export type FrameCheck = { status: FrameStatus; coin: { x: number; y: number; r: number } | null };
 
-export function frameCheck(s: Settings, uri: string): Promise<FrameCheck> {
+export async function frameCheck(s: Settings, uri: string): Promise<FrameCheck> {
   const form = new FormData();
-  form.append('frame', new File(uri));
+  await appendPhoto(form, 'frame', uri);
   return request(s, '/frame-check', { method: 'POST', body: form });
 }
 

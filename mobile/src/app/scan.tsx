@@ -75,7 +75,7 @@ export default function ScanScreen() {
     setBusy(true);
     try {
       const photo = await takePicture({ quality: 0.9 });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); // no haptics on the web
       const uri = await cropToGuide(photo.uri, photo.width, photo.height, OUTPUT, 0.88);
       armed.current = false;
       setStatus(null);

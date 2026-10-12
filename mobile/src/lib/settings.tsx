@@ -43,6 +43,7 @@ const Ctx = createContext<{ settings: Settings; save: (s: Partial<Settings>) => 
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState(DEFAULTS);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem(KEY)
@@ -52,7 +53,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setSettings(code ? { ...stored, token: code } : stored);
         if (code) AsyncStorage.setItem(KEY, JSON.stringify({ ...stored, token: code })).catch(() => {});
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoaded(true));
   }, []);
 
   const save = (patch: Partial<Settings>) => {
@@ -61,6 +63,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     AsyncStorage.setItem(KEY, JSON.stringify(next)).catch(() => {});
   };
 
+  // Render nothing until stored settings (server, access code) are known: no request may leave without them.
+  if (!loaded) return null;
   return <Ctx.Provider value={{ settings, save }}>{children}</Ctx.Provider>;
 }
 

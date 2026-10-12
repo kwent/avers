@@ -29,6 +29,9 @@ dev = [
     "ruff>=0.17.0",
 ]
 
+[tool.vercel]
+entrypoint = "app.main:app"
+
 [tool.ruff]
 line-length = 120
 target-version = "py313"
