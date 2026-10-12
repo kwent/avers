@@ -9,13 +9,19 @@ coin shows; `correct_year` then re-prices the same reading with that year (no ne
 """
 
 import logging
+import os
 import re
 import sqlite3
 import time
+from dataclasses import dataclass, field
 
-from app import catalog, collection, identify, matching, metals, numista, pricing
+from app import catalog, collection, identify, matching, metals, numista, pricing, years
 
 log = logging.getLogger(__name__)
+
+# e2e only (scripts/e2e-ios.sh): years the reading is turned into, "1851:1861", to exercise the year question with
+# a model that reads the fixture right. Never set in production.
+E2E_MISREAD = dict(p.split(":") for p in os.environ.get("E2E_MISREAD_YEARS", "").split(",") if ":" in p)
 
 # catalog metal wording -> normalized metal
 CATALOG_METAL = {"Or": "gold", "Argent": "silver", "Billon": "billon", "Platine": "platinum"}
@@ -38,34 +44,34 @@ def _apply_catalog_facts(coin: identify.CoinIdentification, row: sqlite3.Row) ->
         coin.catalog_refs = [f"G. {ref}" for ref in sorted(listed)] + others
 
 
-def _year_check(catalog_db: sqlite3.Connection, coin: identify.CoinIdentification, ref: dict | None) -> dict | None:
-    """Ask the user which year the coin shows when the year read may be wrong. Numista lists the years its type was
-    really struck: a year it knows is not questioned. Suggestions pool Numista's years and the catalog's, a commonly
-    misread digit away first, then the nearest struck years."""
-    numista_years = ref["years"] if ref else []
-    if coin.year in numista_years:
-        return None
-    pool = set(numista_years) | set(matching.year_suggestions(catalog_db, coin))
-    confusable = sorted(
-        (y for y in pool if matching.misread_rank(coin.year, y) is not None),
-        key=lambda y: matching.misread_rank(coin.year, y),
-    )
-    nearest = sorted((y for y in pool if y not in confusable), key=lambda y: abs(y - coin.year))
-    return {"read": coin.year, "suggestions": (confusable + nearest)[:3]}
+@dataclass
+class Sources:
+    """Where an estimate looks things up: the catalog, the store (collection, photos, API cache), the visual index."""
+
+    catalog_db: sqlite3.Connection
+    store: collection.Store
+    index: object = None
 
 
-def run(
-    photos: list[tuple[bytes, str]],
-    currency: str,
-    language: str,
-    catalog_db: sqlite3.Connection,
-    store: collection.Store,
-    index=None,
-) -> dict:
+@dataclass
+class Shots:
+    """The photos of an estimate: stored names (obverse first), their bytes, and a warning about them."""
+
+    names: list[str]
+    data: list[bytes] = field(default_factory=list)
+    warning: str | None = None
+
+
+def run(photos: list[tuple[bytes, str]], currency: str, language: str, src: Sources) -> dict:
     """photos: [(jpeg bytes, stored file name)], front first."""
     t0 = time.monotonic()
     coin = identify.identify([(data, "image/jpeg") for data, _ in photos], language)
     log.warning("estimate identified (%s, %.2f) +%.1fs", coin.status, coin.confidence, time.monotonic() - t0)
+
+    if coin.year and str(coin.year) in E2E_MISREAD:
+        misread = int(E2E_MISREAD[str(coin.year)])
+        coin.title = (coin.title or "").replace(str(coin.year), str(misread))
+        coin.year = misread
 
     names = [name for _, name in photos]
     photo_warning = None
@@ -75,47 +81,34 @@ def run(
         elif coin.photo_sides[0] == coin.photo_sides[1] != "unclear":
             photo_warning = "same_side"
 
-    return price(coin, names, [data for data, _ in photos], photo_warning, currency, language, catalog_db, store, index)
+    shots = Shots(names, [data for data, _ in photos], photo_warning)
+    return price(coin, shots, currency, language, src)
 
 
-def correct_year(
-    previous: dict, year: int, catalog_db: sqlite3.Connection, store: collection.Store, index=None
-) -> dict:
+def correct_year(previous: dict, year: int, src: Sources) -> dict:
     """Re-price a previous estimate with the year the user reads on the coin. Same reading, no AI call."""
     coin = identify.CoinIdentification.model_validate(previous["identification"])
     if coin.year and coin.title:  # the title was written from the reading: carry the user's year into it
         coin.title = coin.title.replace(str(coin.year), str(year))
     coin.year = year
     names = [n for n in (previous["photos"]["front"], previous["photos"]["back"]) if n]
-    data = [store.photo(n) for n in names]
-    photos = [d for d in data if d is not None]
-    return price(
-        coin,
-        names,
-        photos,
-        previous.get("photo_warning"),
-        previous["currency"],
-        previous.get("language", identify.DEFAULT_LANGUAGE),
-        catalog_db,
-        store,
-        index,
-        year_confirmed=True,
-    )
+    data = [d for d in (src.store.photo(n) for n in names) if d is not None]
+    shots = Shots(names, data, previous.get("photo_warning"))
+    language = previous.get("language", identify.DEFAULT_LANGUAGE)
+    return price(coin, shots, previous["currency"], language, src, year_confirmed=True)
 
 
 def price(
     coin: identify.CoinIdentification,
-    names: list[str],
-    photos: list[bytes],
-    photo_warning: str | None,
+    shots: Shots,
     currency: str,
     language: str,
-    catalog_db: sqlite3.Connection,
-    store: collection.Store,
-    index=None,
+    src: Sources,
     year_confirmed: bool = False,
 ) -> dict:
-    """Steps 2 and 3 for a reading: catalog match, melt value, price. `names`: stored photo names, obverse first."""
+    """Steps 2 and 3 for a reading: catalog match, melt value, price."""
+    catalog_db, store = src.catalog_db, src.store
+    names, photos, photo_warning = shots.names, shots.data, shots.warning
     t0 = time.monotonic()
     result = {
         "currency": currency,
@@ -134,7 +127,7 @@ def price(
     if coin.status != "identified":
         return result  # never value something we could not identify
 
-    match = matching.find(catalog_db, coin, photos, index)
+    match = matching.find(catalog_db, coin, photos, src.index)
     log.warning("estimate matched (%s) +%.1fs", match and match.row["id"], time.monotonic() - t0)
     if match:
         _apply_catalog_facts(coin, match.row)
@@ -167,7 +160,7 @@ def price(
         ref = numista.lookup(store, lookup, currency)
         result["numista"] = ref
         if coin.year and not year_confirmed:
-            check = _year_check(catalog_db, coin, ref)
+            check = years.check(catalog_db, coin, ref)
             result["year_check"] = check
         else:
             check = None
@@ -211,7 +204,7 @@ def price(
     result["price_table"] = [pricing.to_dict(r) for r in table]
     est = pricing.estimate(table, coin.grade, melt_now)
     if est is not None:
-        years = [p.year for p in points if p.year]
+        sale_years = [p.year for p in points if p.year]
         result["valuation"] = {
             "value_low": est.value_low,
             "value_high": est.value_high,
@@ -221,8 +214,8 @@ def price(
             # facts for the app's own wording (no generated text)
             "basis": {
                 "listings": len(points),
-                "first_year": min(years) if years else None,
-                "last_year": max(years) if years else None,
+                "first_year": min(sale_years) if sale_years else None,
+                "last_year": max(sale_years) if sale_years else None,
                 "metal_share": round(melt_now / est.retail_high, 2) if melt_now and est.retail_high else None,
             },
         }

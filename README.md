@@ -1,13 +1,23 @@
+<p align="center"><img src="mobile/assets/icon.png" width="112" alt="Avers app icon"></p>
+
 # Avers
 
 **Take a photo of a coin, find out what it is and what it's worth.**
+
+<p align="center">
+  <img src="docs/screenshots/home.png" width="250" alt="Home: photograph a coin">
+  <img src="docs/screenshots/result.png" width="250" alt="Estimate of a 10 Francs Cérès 1851 A">
+  <img src="docs/screenshots/collection.png" width="250" alt="Collection total and breakdown">
+</p>
 
 Avers is a small mobile app for coin collectors. You photograph a coin from both sides and it:
 
 - **identifies** the coin (country, year, mint, denomination, type, catalog references) with a vision model, then
   finds it in the catalog, which is the source of truth for its facts and prices,
 - **estimates its condition** on the French grading scale (B · TB · TTB · SUP · SPL · FDC),
-- **values it** from the catalog listings of that exact coin, per grade, with shop and private-resale prices,
+- **values it** from the catalog listings of that exact coin, per grade, with shop and private-resale prices
+  (Numista's indicative price when the catalog has none; never a made-up one),
+- **asks** which year the coin shows when the date read may be wrong (a worn 5 taken for a 6),
 - computes the **melt value** of its precious metal content from live spot prices,
 - keeps a **personal collection** with quantities, notes and a running total value.
 
@@ -65,7 +75,13 @@ npx expo start
 ```
 
 Scan the QR code with Expo Go on the phone (same Wi-Fi as the API). Expo Go requires the same free Expo account to be
-signed in on the phone and in the CLI (`npx expo login`). The server address can also be changed in the app under **Réglages**.
+signed in on the phone and in the CLI (`npx expo login`). In development the app talks to the computer serving the
+bundle on port 8000 (start the API with `--host 0.0.0.0`); the address can be changed under **Réglages**, or passed
+in the link: `exp://…/--/?api=<url>&lang=fr` (development builds only).
+
+Styling is [NativeWind](https://www.nativewind.dev) (Tailwind classes). Design tokens (the "noir & or" palette,
+Lexend type ramp, spacing, radius) live in `mobile/src/theme/tokens.js` and feed both `tailwind.config.js` and
+`src/theme`; shared primitives are in `src/components/ui.tsx`. Format with `npx prettier --write src`.
 
 ### Hosting (Vercel)
 
@@ -100,8 +116,9 @@ brew install mobile-dev-inc/tap/maestro          # needs a JDK (e.g. openjdk@21)
 mobile/scripts/e2e-ios.sh                        # all flows; or pass a flow file
 ```
 
-The script starts its own API on port 8001 with an empty, throwaway collection, so tests never touch real data.
-The full journey makes real vision-model calls.
+The script starts its own API on port 8001 with an empty, throwaway collection, so tests never touch real data, and
+opens the app with that server in the link. The full journey makes real vision-model calls; the test API turns the
+1851 it reads into 1861 (`E2E_MISREAD_YEARS`) so the flow also answers the year question.
 
 ### Choosing the vision model
 

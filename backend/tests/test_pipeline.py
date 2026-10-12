@@ -6,7 +6,7 @@ from tests.test_matching import FakeIndex
 
 def run(monkeypatch, reading, index=None):
     monkeypatch.setattr(identify, "identify", lambda images, language: reading)
-    return pipeline.run([(jpeg(), "f.jpg")], "EUR", "fr", main.catalog_db, main.store, index)
+    return pipeline.run([(jpeg(), "f.jpg")], "EUR", "fr", pipeline.Sources(main.catalog_db, main.store, index))
 
 
 def test_catalog_entry_is_the_source_of_truth(monkeypatch, catalog_1851):

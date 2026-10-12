@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import re
-import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 
 from app.http import SSL_CTX, UA
 from app.identify import CoinIdentification
+from app.matching import plain
 
 log = logging.getLogger(__name__)
 
@@ -64,15 +64,11 @@ def _get(store, path: str, params: dict, max_age: timedelta) -> dict | list | No
     return data
 
 
-def _plain(text: str) -> str:
-    return "".join(c for c in unicodedata.normalize("NFD", (text or "").lower()) if not unicodedata.combining(c))
-
-
 def _gadoury_catalogue(store) -> int | None:
     """Numista's ID for Gadoury "Monnaies françaises" (not his colonial, necessity or Olympic catalogues)."""
     data = _get(store, "/catalogues", {}, FACTS_AGE) or {}
     for c in data.get("catalogues", []):
-        if "gadoury" in _plain(c.get("author", "")) and _plain(c.get("title", "")).startswith("monnaies francaises"):
+        if "gadoury" in plain(c.get("author", "")) and plain(c.get("title", "")).startswith("monnaies francaises"):
             return c["id"]
     return None
 
@@ -82,8 +78,8 @@ def _issuer(store, country_name: str | None) -> str | None:
     if not country_name:
         return None
     data = _get(store, "/issuers", {"lang": "fr"}, FACTS_AGE) or {}
-    name = _plain(country_name)
-    return next((i["code"] for i in data.get("issuers", []) if _plain(i.get("name", "")) == name), None)
+    name = plain(country_name)
+    return next((i["code"] for i in data.get("issuers", []) if plain(i.get("name", "")) == name), None)
 
 
 def find_type(store, coin: CoinIdentification) -> dict | None:
@@ -106,9 +102,9 @@ def find_type(store, coin: CoinIdentification) -> dict | None:
         if issuer:
             params["issuer"] = issuer
         data = _get(store, "/types", params, FACTS_AGE)
-        face = _plain(coin.denomination or "")
+        face = plain(coin.denomination or "")
         # "20 Francs" must not match "20 centimes": the title has to name the same denomination
-        found = [t for t in (data or {}).get("types", []) if not face or face in _plain(t.get("title", ""))]
+        found = [t for t in (data or {}).get("types", []) if not face or face in plain(t.get("title", ""))]
     if not found:
         return None
 

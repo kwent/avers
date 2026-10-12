@@ -71,3 +71,13 @@ def test_estimate_spans_half_a_grade_each_side():
 def test_no_estimate_without_grade_or_data(grade):
     rows = pricing.price_table(pricing.prepare([pt(500, "TTB")], None, None, None, 1.0), None)
     assert pricing.estimate(rows, grade, None) is None
+
+
+def test_grade_below_every_listing_is_bounded_by_metal_and_the_next_grade():
+    """A TB coin when only TTB is listed: more than its gold, less than a TTB."""
+    rows = pricing.price_table(pricing.prepare([pt(1100, "TTB")], None, None, None, 1.0), 350)
+    est = pricing.estimate(rows, "TB", 350)
+    ttb = rows[pricing.GRADES.index("TTB")]
+    assert (est.value_low, est.value_high) == (350, ttb.resale)
+    assert est.retail_high == ttb.retail
+    assert pricing.estimate(rows, "TB", None) is None  # no metal floor: no lower bound, no price

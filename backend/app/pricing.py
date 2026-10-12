@@ -146,7 +146,18 @@ def estimate(rows: list[GradePrice], grade: str | None, melt_now: float | None) 
     i = GRADES.index(grade)
     row = rows[i]
     if row.retail is None:
-        return None
+        # Graded below every listed grade: no price of its own, but bounded by data. It is worth more than its metal
+        # and less than the lowest listed grade above it. (Above every listed grade there is no upper bound: no price.)
+        higher = next((r for r in rows[i + 1 :] if r.retail is not None), None)
+        if higher is None or not melt_now:
+            return None
+        return Estimate(
+            grade=grade,
+            value_low=round(melt_now, 0),
+            value_high=higher.resale,
+            retail_low=round(melt_now * 1.05, 0),
+            retail_high=higher.retail,
+        )
     below = rows[i - 1].retail if i > 0 and rows[i - 1].retail else row.retail
     above = rows[i + 1].retail if i + 1 < len(rows) and rows[i + 1].retail else row.retail
     retail_low = (below * row.retail) ** 0.5  # geometric midpoints between grades

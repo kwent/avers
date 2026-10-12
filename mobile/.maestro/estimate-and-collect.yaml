@@ -27,10 +27,24 @@ tags: [e2e]
 - assertVisible: # the fast model can answer before this is checked
     text: "Analyse de la pièce…"
     optional: true
+# The e2e API turns the 1851 read into 1861 (E2E_MISREAD_YEARS): no listing, so the app asks the year
+- extendedWaitUntil:
+    visible:
+      id: "year-check"
+    timeout: 120000
+- assertVisible: "Est-ce bien 1861 ?"
+- scrollUntilVisible: # off the sticky add bar, which would take the tap
+    element:
+      id: "year-1851"
+    centerElement: true
+- tapOn:
+    id: "year-1851"
 - extendedWaitUntil:
     visible: "Valeur estimée.*"
-    timeout: 120000
-- assertVisible: ".*10 Francs.*1851.*"
+    timeout: 30000
+- scrollUntilVisible: # the title, above the answer
+    element: ".*10 Francs.*1851.*"
+    direction: UP
 
 # Price by grade, metal, record (copy all, then one line), catalog match
 - scrollUntilVisible:

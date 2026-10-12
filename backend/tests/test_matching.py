@@ -1,6 +1,6 @@
 import pytest
 
-from app import main, matching
+from app import main, matching, years
 from tests.test_catalog import make_coin
 
 
@@ -73,5 +73,5 @@ def test_face_values_cover_sub_units(face, denomination, expected):
     ("read", "year", "rank"),
     [(1861, 1851, 0), (1861, 1867, 5), (1861, 1871, None), (1861, 1851 + 10, None), (1861, 1751, None)],
 )
-def testmisread_rank(read, year, rank):
-    assert matching.misread_rank(read, year) == rank
+def test_misread_rank(read, year, rank):
+    assert years.misread_rank(read, year) == rank

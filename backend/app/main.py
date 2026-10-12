@@ -89,7 +89,7 @@ def estimate(
     store.prune_photos()
     photos = [_normalize_photo(front)] + ([_normalize_photo(back)] if back else [])
     try:
-        return pipeline.run(photos, currency, language, catalog_db, store, visual_index)
+        return pipeline.run(photos, currency, language, pipeline.Sources(catalog_db, store, visual_index))
     except identify.VisionError as e:
         raise HTTPException(502, f"identification failed: {e}") from e
 
@@ -103,7 +103,7 @@ class YearCorrection(BaseModel):
 def estimate_year(body: YearCorrection):
     """Re-price an estimate with the year the user reads on the coin (no AI call, so not counted in the daily cap)."""
     try:
-        return pipeline.correct_year(body.estimate, body.year, catalog_db, store, visual_index)
+        return pipeline.correct_year(body.estimate, body.year, pipeline.Sources(catalog_db, store, visual_index))
     except (KeyError, TypeError, ValidationError) as e:
         raise HTTPException(422, "not an estimate") from e
 
