@@ -26,3 +26,6 @@ htmlcov/
 
 # e2e coin photos (not redistributable)
 mobile/.maestro/fixtures/
+
+# Local tool state
+.serena/
