@@ -161,7 +161,7 @@ const en: Messages = {
     automatic: (name) => `Automatic (${name})`,
     currency: 'Currency',
     server: 'Connection',
-    serverHint: 'Technical settings, already set by the link you received.',
+    serverHint: 'Already set by the link you received. The access code is at the end of that link, after “code=”.',
     serverUrl: 'Server address',
     token: 'Access code',
     saveTest: 'Save and test',

@@ -167,7 +167,7 @@ const fr = {
     automatic: (name: string) => `Automatique (${name})`,
     currency: 'Devise',
     server: 'Connexion',
-    serverHint: 'Réglages techniques, déjà configurés par le lien reçu.',
+    serverHint: 'Déjà configurée par le lien reçu. Le code d’accès se trouve à la fin de ce lien, après « code= ».',
     serverUrl: 'Adresse du serveur',
     token: 'Code d’accès',
     saveTest: 'Enregistrer et tester',

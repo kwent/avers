@@ -91,50 +91,53 @@ export default function SettingsScreen() {
         ))}
       </Section>
 
-      {/* development only: production builds have the server built in and get the access code from the link */}
-      {__DEV__ && (
-        <Section footer={advanced ? undefined : m.settings.serverHint}>
-          <Row
-            testID="server-toggle"
-            label={m.settings.server}
-            chevron={!advanced}
-            onPress={() => setAdvanced((a) => !a)}
-          />
-          {advanced && (
-            <View className="gap-2 p-4">
-              <T variant="small" tone="soft">
-                {m.settings.serverUrl}
-              </T>
-              <TextInput
-                testID="server-url"
-                selectTextOnFocus
-                clearButtonMode="while-editing"
-                className={input}
-                value={apiUrl}
-                onChangeText={setApiUrl}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="url"
-                placeholder="https://…"
-              />
-              <T variant="small" tone="soft">
-                {m.settings.token}
-              </T>
-              <TextInput
-                testID="server-token"
-                className={input}
-                value={token}
-                onChangeText={setToken}
-                autoCapitalize="none"
-                autoCorrect={false}
-                secureTextEntry
-              />
-              <Button testID="server-save" title={m.settings.saveTest} onPress={test} />
-              {status && <T accessibilityLiveRegion="polite">{status}</T>}
-            </View>
-          )}
-        </Section>
-      )}
+      {/* the access code comes with the link; typing it here is the fallback (e.g. an icon added to the home screen
+          opens without the link's code). The server address is only editable in development builds. */}
+      <Section footer={advanced ? undefined : m.settings.serverHint}>
+        <Row
+          testID="server-toggle"
+          label={m.settings.server}
+          chevron={!advanced}
+          onPress={() => setAdvanced((a) => !a)}
+        />
+        {advanced && (
+          <View className="gap-2 p-4">
+            {__DEV__ && (
+              <>
+                <T variant="small" tone="soft">
+                  {m.settings.serverUrl}
+                </T>
+                <TextInput
+                  testID="server-url"
+                  selectTextOnFocus
+                  clearButtonMode="while-editing"
+                  className={input}
+                  value={apiUrl}
+                  onChangeText={setApiUrl}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  keyboardType="url"
+                  placeholder="https://…"
+                />
+              </>
+            )}
+            <T variant="small" tone="soft">
+              {m.settings.token}
+            </T>
+            <TextInput
+              testID="server-token"
+              className={input}
+              value={token}
+              onChangeText={setToken}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+            />
+            <Button testID="server-save" title={m.settings.saveTest} onPress={test} />
+            {status && <T accessibilityLiveRegion="polite">{status}</T>}
+          </View>
+        )}
+      </Section>
     </ScrollView>
   );
 }

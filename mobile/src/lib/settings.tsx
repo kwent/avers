@@ -41,6 +41,8 @@ function linkCode(): string | null {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   return new URLSearchParams(window.location.hash.slice(1)).get('code');
 }
+// Read once, at load: the router may rewrite the URL (and drop the fragment) before stored settings are loaded.
+const LINK_CODE = linkCode();
 
 /**
  * Development builds only: settings passed in the app link (exp://…/--/?api=…&lang=fr), so e2e flows configure the
@@ -70,7 +72,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(KEY)
       .then((raw) => {
         const stored = raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS;
-        const code = linkCode();
+        const code = LINK_CODE;
         setSettings(code ? { ...stored, token: code } : stored);
         if (code) AsyncStorage.setItem(KEY, JSON.stringify({ ...stored, token: code })).catch(() => {});
       })
