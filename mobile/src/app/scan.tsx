@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, Pressable, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Press, T } from '../components/ui';
 import { useI18n } from '../i18n';
@@ -30,6 +30,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** The session is (re)starting, e.g. right after a lens switch: retry instead of failing. */
 const isNotReady = (e: unknown) => String(e).includes('CameraNotReady');
 
+const imageSize = (uri: string) =>
+  new Promise<[number, number]>((resolve, reject) => Image.getSize(uri, (w, h) => resolve([w, h]), reject));
+
 export default function ScanScreen() {
   const { m } = useI18n();
   const { settings } = useSettings();
@@ -49,6 +52,8 @@ export default function ScanScreen() {
 
   // Crop the photo to the square around the on-screen circle (preview is "cover"-scaled).
   const cropToGuide = async (uri: string, w: number, h: number, size: number, compress: number) => {
+    // web: expo-camera reports the stream's size (landscape on phones), not the captured portrait frame's
+    if (Platform.OS === 'web') [w, h] = await imageSize(uri);
     const scale = Math.max(W / w, H / h);
     const side = Math.min(w, h, (guide / scale) * PADDING);
     const image = await ImageManipulator.manipulate(uri)
