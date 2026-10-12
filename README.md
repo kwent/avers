@@ -67,7 +67,7 @@ signed in on the phone and in the CLI (`npx expo login`). The server address can
 ## Development
 
 ```bash
-cd backend && uv run pytest && uv run ruff check app tests && uv run ruff format app tests
+cd backend && uv run pytest && uv run ruff check app tests bench && uv run ruff format app tests bench
 cd mobile && npx tsc --noEmit && npx expo-doctor
 ```
 

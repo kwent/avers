@@ -2,7 +2,7 @@
 
 Coin identification + valuation app. See README.md for architecture.
 
-- `backend/`: FastAPI + SQLite, managed with uv. Test: `uv run pytest`; lint: `uv run ruff check app tests && uv run ruff format app tests`.
+- `backend/`: FastAPI + SQLite, managed with uv. Test: `uv run pytest`; lint: `uv run ruff check app tests bench && uv run ruff format app tests bench`.
 - `mobile/`: Expo app (routes in `src/app/`). Read `mobile/AGENTS.md` before touching Expo APIs. Typecheck: `npx tsc --noEmit`; deps: `npx expo install` (falls back to `npm install --legacy-peer-deps` on peer conflicts).
 
 Rules:
