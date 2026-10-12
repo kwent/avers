@@ -293,18 +293,17 @@ class Store:
 
     def thumb(self, name: str) -> tuple[bytes | None, bytes | None]:
         """(small version, full photo): the full photo only when there is no small version yet."""
-        rows = self.query(
-            "SELECT thumb, CASE WHEN thumb IS NULL THEN data END AS data FROM photos WHERE name = ?", (name,)
-        )
-        if not rows:
-            return None, None
-        r = rows[0]
-        return (bytes(r["thumb"]) if r["thumb"] is not None else None), (
-            bytes(r["data"]) if r["data"] is not None else None
-        )
+        sql = "SELECT thumb, CASE WHEN thumb IS NULL THEN data END AS data FROM photos WHERE name = ?"
+        rows = self.query(sql, (name,))
+        row = rows[0] if rows else {}
+        return _bytes(row.get("thumb")), _bytes(row.get("data"))
 
     def set_thumb(self, name: str, thumb: bytes) -> None:
         self.execute("UPDATE photos SET thumb = ? WHERE name = ?", (thumb, name))
+
+
+def _bytes(value) -> bytes | None:
+    return bytes(value) if value is not None else None  # Postgres returns memoryview
 
 
 def connect() -> Store:
