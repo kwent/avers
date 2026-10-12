@@ -3,11 +3,12 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Pressable, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Press, T, thud } from '../components/ui';
 import { useI18n } from '../i18n';
 import { FrameStatus, frameCheck } from '../lib/api';
+import { bestLens, CAN_TORCH, capturedSize, tuneStream } from '../lib/platform/camera';
 import { scan } from '../lib/scanStore';
 import { useSettings } from '../lib/settings';
 import { colors } from '../theme';
@@ -20,37 +21,10 @@ const CHECK_SIZE = 480; // px, square, live frame check
 const CHECK_INTERVAL = 500; // ms between live checks
 const OK_STREAK = 2; // consecutive good frames before the automatic shot
 
-// Virtual multi-camera devices switch to the ultra-wide lens for close-up (macro) focus,
-// like Apple's Camera app; the default wide lens cannot focus on a coin held close.
-const PREFERRED_LENSES = [/triple/i, /dual wide/i, /dual/i];
-
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** The session is (re)starting, e.g. right after a lens switch: retry instead of failing. */
 const isNotReady = (e: unknown) => String(e).includes('CameraNotReady');
-
-/**
- * Web: expo-camera opens the stream without a resolution, so browsers fall back to about 640×480, too coarse to read
- * a date. Ask the running stream for Full HD (the browser picks the closest it can do).
- */
-async function sharpenWebStream() {
-  let stream: unknown;
-  // onCameraReady fires before expo-camera attaches the stream to the <video>
-  for (let i = 0; i < 20 && !(stream instanceof MediaStream); i++) {
-    stream = document.querySelector('video')?.srcObject;
-    if (!(stream instanceof MediaStream)) await sleep(100);
-  }
-  const track = stream instanceof MediaStream ? stream.getVideoTracks()[0] : undefined;
-  try {
-    await track?.applyConstraints({ width: { ideal: 1920 }, height: { ideal: 1080 } });
-    await sleep(300); // let the new frame size reach the video element
-  } catch {
-    // keep the default resolution
-  }
-}
-
-const imageSize = (uri: string) =>
-  new Promise<[number, number]>((resolve, reject) => Image.getSize(uri, (w, h) => resolve([w, h]), reject));
 
 export default function ScanScreen() {
   const { m } = useI18n();
@@ -72,7 +46,7 @@ export default function ScanScreen() {
   // Crop the photo to the square around the on-screen circle (preview is "cover"-scaled).
   const cropToGuide = async (uri: string, w: number, h: number, size: number, compress: number) => {
     // web: expo-camera reports the stream's size (landscape on phones), not the captured portrait frame's
-    if (Platform.OS === 'web') [w, h] = await imageSize(uri);
+    [w, h] = await capturedSize(uri, w, h);
     const scale = Math.max(W / w, H / h);
     const side = Math.min(w, h, (guide / scale) * PADDING);
     const image = await ImageManipulator.manipulate(uri)
@@ -127,17 +101,12 @@ export default function ScanScreen() {
 
   // Choose the lens first: switching it restarts the session, and photos taken meanwhile fail.
   const onReady = async () => {
-    if (Platform.OS === 'web') await sharpenWebStream();
-    if (Platform.OS !== 'web' && lens === undefined) {
-      try {
-        const lenses = (await camera.current?.getAvailableLensesAsync()) ?? [];
-        const best = PREFERRED_LENSES.map((re) => lenses.find((l) => re.test(l))).find(Boolean);
-        if (best) {
-          setLens(best);
-          await sleep(800); // let the session settle on the new lens
-        }
-      } catch {
-        // Android / older devices: keep the default lens
+    await tuneStream();
+    if (lens === undefined) {
+      const best = await bestLens(camera.current);
+      if (best) {
+        setLens(best);
+        await sleep(800); // let the session settle on the new lens
       }
     }
     setReady(true);
@@ -238,7 +207,7 @@ export default function ScanScreen() {
           >
             <Ionicons name="close" size={34} color="#fff" />
           </Pressable>
-          {Platform.OS !== 'web' && ( // browsers cannot drive the torch
+          {CAN_TORCH && (
             <Pressable
               accessibilityLabel={torch ? m.scan.torchOff : m.scan.torchOn}
               onPress={() => setTorch((t) => !t)}

@@ -136,7 +136,7 @@ export default function CollectionScreen() {
             onPress={() => router.push({ pathname: '/item/[id]', params: { id: String(item.id) } })}
             chevron
             stacked
-            leading={<CoinWell size={THUMB} uri={photoUrl(settings, item.photo_front)} />}
+            leading={<CoinWell size={THUMB} uri={photoUrl(settings, item.photo_front, true)} />}
             label={
               <T variant="bodyStrong" numberOfLines={2}>
                 {item.quantity > 1 ? `${item.quantity} × ` : ''}

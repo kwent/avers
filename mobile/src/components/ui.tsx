@@ -1,25 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
-import * as Haptics from 'expo-haptics';
 import { Children, ComponentProps, Fragment, isValidElement, ReactNode } from 'react';
-import { ActivityIndicator, Platform, Pressable, PressableProps, Text, TextProps, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, PressableProps, Text, TextProps, View, ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { colors, glow as glowShadow, metals, wellShadow } from '../theme';
+import { success, thud, tick } from '../lib/platform/haptics';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 export const cn = (...classes: (string | false | null | undefined)[]) => classes.filter(Boolean).join(' ');
 
-// Felt in the hand, on native only (browsers have no haptics).
-const haptic = (feel: () => Promise<void>) => {
-  if (Platform.OS !== 'web') feel().catch(() => {});
-};
-/** A light tap: a selection. */
-export const tick = () => haptic(Haptics.selectionAsync);
-/** A firm tap: the shutter. */
-export const thud = () => haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
-/** Done: the estimate is in. */
-export const success = () => haptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
+export { success, thud, tick };
 
 // ---------------------------------------------------------------- text
 

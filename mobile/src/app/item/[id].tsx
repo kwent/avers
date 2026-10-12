@@ -1,10 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, TextInput, View } from 'react-native';
 import { EstimateView } from '../../components/EstimateView';
 import { Button, Notice, Press, Row, Section, T } from '../../components/ui';
 import { errorText, useI18n } from '../../i18n';
+import { confirm } from '../../lib/platform/confirm';
 import { deleteItem, getItem, Item, patchItem, photoUrl } from '../../lib/api';
 import { range } from '../../lib/format';
 import { useSettings } from '../../lib/settings';
@@ -40,16 +41,8 @@ export default function ItemScreen() {
     router.back();
   };
 
-  const remove = () => {
-    // react-native-web has no multi-button Alert
-    if (Platform.OS === 'web') {
-      if (window.confirm(`${m.item.removeTitle}\n${m.item.removeBody}`)) doRemove();
-      return;
-    }
-    Alert.alert(m.item.removeTitle, m.item.removeBody, [
-      { text: m.common.cancel, style: 'cancel' },
-      { text: m.item.removeConfirm, style: 'destructive', onPress: doRemove },
-    ]);
+  const remove = async () => {
+    if (await confirm(m.item.removeTitle, m.item.removeBody, m.item.removeConfirm, m.common.cancel)) doRemove();
   };
 
   if (error) {

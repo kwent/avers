@@ -1,5 +1,4 @@
-import { File } from 'expo-file-system';
-import { Platform } from 'react-native';
+import { appendPhoto } from './platform/upload';
 import { currencyOf } from '../i18n';
 import { Settings } from './settings';
 
@@ -173,20 +172,9 @@ async function request<T>(s: Settings, path: string, init: RequestInit = {}): Pr
   return res.json();
 }
 
-export const photoUrl = (s: Settings, name: string | null) => (name ? `${s.apiUrl}/uploads/${name}` : undefined);
-
-/**
- * Add a photo to a multipart form. Native: expo/fetch (the global fetch) only takes Blob/File parts, not RN's
- * { uri, name, type } objects, so wrap the file. Web: the uri is a blob:/data: URL, read it into a Blob.
- */
-async function appendPhoto(form: FormData, field: string, uri: string) {
-  if (Platform.OS === 'web') {
-    const blob = await (await fetch(uri)).blob();
-    form.append(field, blob, `${field}.jpg`);
-  } else {
-    form.append(field, new File(uri));
-  }
-}
+/** A stored photo; `thumb` for the small version shown in lists. */
+export const photoUrl = (s: Settings, name: string | null, thumb = false) =>
+  name ? `${s.apiUrl}/uploads/${name}${thumb ? '?size=thumb' : ''}` : undefined;
 
 export async function estimate(s: Settings, front: string, back: string | null, language: string): Promise<Estimate> {
   const form = new FormData();
