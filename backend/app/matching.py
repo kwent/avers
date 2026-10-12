@@ -1,0 +1,101 @@
+"""Find the catalog entry for a coin read from photos — plain rules + visual similarity, no LLM.
+
+The photo reading gives country, denomination, year, mint and references. Catalog listings with the same
+country, face value and year (and mint / Gadoury reference when both sides know them) are the same coin in
+various grades; visual similarity confirms the type and picks the closest listing.
+"""
+
+import re
+import sqlite3
+from dataclasses import dataclass, field
+
+from app.identify import CoinIdentification
+from app.metals import CATALOG_METALS
+
+# Visual similarity (DINOv2, 0-1) needed to accept a match on facts alone, and how far below the best listing
+# another listing may score and still count as the same type.
+MIN_SIMILARITY = 0.75
+SAME_TYPE_MARGIN = 0.05
+
+# "FRANCE-1851A-10 Francs …", "FRANCE-1717 W-Ecu …", "FRANCE-1854-A-10 FRANCS …", "HONGRIE-1911 KB-10 Korona …"
+LISTING_DATE = re.compile(r"-(\d{4})(?:/\d+)?(?:\s*-?\s*([A-Z]{1,2}))?(?=\s*-)")
+GADOURY_REF = re.compile(r"\bG(?:ad(?:oury)?)?\.?\s*(\d+[a-z]?)\b", re.I)
+
+
+def listing_mint(name: str) -> str | None:
+    m = LISTING_DATE.search(name or "")
+    return m.group(2) if m else None
+
+
+def gadoury_refs(refs: list[str]) -> set[str]:
+    out = set()
+    for ref in refs:
+        m = GADOURY_REF.match(ref.strip())
+        if m:
+            out.add(m.group(1).lower())
+    return out
+
+
+def listing_refs(name: str | None) -> set[str]:
+    """Gadoury numbers quoted in a listing name, e.g. 'FRANCE-1851A-10 Francs G. 1012 TTBSUP' -> {'1012'}."""
+    return {x.lower() for x in GADOURY_REF.findall(name or "")}
+
+
+@dataclass
+class Match:
+    row: sqlite3.Row
+    same: list[sqlite3.Row]  # every listing of this coin (any grade), match included
+    confidence: float
+    criteria: list[str] = field(default_factory=list)  # what agreed: country, face_value, year, mint, reference
+    similarity: float | None = None
+
+
+def candidates(db: sqlite3.Connection, coin: CoinIdentification) -> tuple[list[sqlite3.Row], list[str]]:
+    """Listings agreeing with the reading on every fact both sides know."""
+    if coin.status != "identified" or not coin.country_iso or not coin.year:
+        return [], []
+    where = ["country_iso = ?", "year = ?", "price > 0"]
+    params: list = [coin.country_iso.upper(), coin.year]
+    criteria = ["country", "year"]
+    if coin.face_value is not None:
+        where.append("face_value = ?")
+        params.append(coin.face_value)
+        criteria.append("face_value")
+    rows = db.execute(f"SELECT * FROM coins WHERE {' AND '.join(where)}", params).fetchall()
+
+    metals = CATALOG_METALS.get(coin.metal, [])
+    if metals:
+        rows = [r for r in rows if not r["metal"] or r["metal"] in metals]
+    if coin.mint_mark:
+        mint = coin.mint_mark.strip().upper()
+        rows = [r for r in rows if listing_mint(r["name"]) in (None, mint)]
+        if any(listing_mint(r["name"]) == mint for r in rows):
+            criteria.append("mint")
+    refs = gadoury_refs(coin.catalog_refs)
+    if refs:
+        with_ref = [r for r in rows if listing_refs(r["name"]) & refs]
+        if with_ref:
+            rows = with_ref
+            criteria.append("reference")
+    return rows, criteria
+
+
+def find(db: sqlite3.Connection, coin: CoinIdentification, photos: list[bytes], index=None) -> Match | None:
+    rows, criteria = candidates(db, coin)
+    if not rows:
+        return None
+    sims = index.scores(photos, [r["id"] for r in rows]) if index is not None and len(index) else {}
+    if sims:
+        best_id = max(sims, key=sims.get)
+        best = sims[best_id]
+        if best < MIN_SIMILARITY and "reference" not in criteria:
+            return None  # the facts agree but the photos do not look like it: do not trust it
+        row = next(r for r in rows if r["id"] == best_id)
+        same = [r for r in rows if r["id"] not in sims or sims[r["id"]] >= best - SAME_TYPE_MARGIN]
+        confidence = min(0.99, best + (0.05 if "reference" in criteria else 0))
+        return Match(row, same, round(confidence, 2), criteria + ["photo"], round(best, 3))
+    # no visual index (or no catalog photos): facts only, trusted when a catalog reference agrees
+    if "reference" not in criteria:
+        return None
+    row = max(rows, key=lambda r: (r["in_stock"] or 0, r["modified"] or ""))
+    return Match(row, rows, 0.8, criteria)

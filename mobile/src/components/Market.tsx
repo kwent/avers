@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useI18n } from '../i18n';
-import { CatalogMatch, GradePrice, MarketQuote } from '../lib/api';
+import { CatalogMatch, GradePrice } from '../lib/api';
 import { gradeName, money, sourceLabel } from '../lib/format';
 import { colors, font } from '../lib/theme';
 import { Card, Label } from './ui';
@@ -32,7 +32,7 @@ export function MatchCard({ match }: { match: CatalogMatch }) {
           {match.name}
         </Text>
         <Text style={styles.small}>
-          {sourceLabel(match.source)} · {match.reason}
+          {sourceLabel(match.source)} · {match.reason ?? m.estimate.matchWhy(match.criteria ?? [], match.similarity ?? null)}
         </Text>
       </Card>
     </Pressable>
@@ -69,38 +69,6 @@ export function PriceTable({ rows, grade, currency }: { rows: GradePrice[]; grad
   );
 }
 
-export function QuoteList({ quotes, currency }: { quotes: MarketQuote[]; currency: string }) {
-  const { m, locale } = useI18n();
-  if (!quotes.length) return null;
-  return (
-    <Card>
-      <Label>{m.estimate.marketQuotes}</Label>
-      {quotes.map((q, i) => {
-        const adjusted = q.adjusted != null && Math.abs(q.adjusted - q.price) >= 1;
-        return (
-          <Pressable
-            key={`${q.url}-${i}`}
-            onPress={() => q.url && Linking.openURL(q.url)}
-            accessibilityRole="link"
-            style={styles.quote}
-          >
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.quoteSource}>
-                {q.source} · {q.kind === 'sold' ? m.estimate.quoteSold : m.estimate.quoteListing}
-                {q.year ? ` ${q.year}` : ''}
-              </Text>
-              <Text style={styles.small}>{q.grade ?? '—'}</Text>
-              {adjusted && <Text style={styles.small}>{m.estimate.adjusted(money(q.adjusted, currency, locale))}</Text>}
-            </View>
-            <Text style={styles.quotePrice}>{money(q.price, currency, locale)}</Text>
-            {q.url && <Ionicons name="open-outline" size={20} color={colors.muted} />}
-          </Pressable>
-        );
-      })}
-    </Card>
-  );
-}
-
 const styles = StyleSheet.create({
   matchHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   matchRow: { flexDirection: 'row', gap: 12, justifyContent: 'center' },
@@ -117,7 +85,4 @@ const styles = StyleSheet.create({
   bold: { fontWeight: '800', color: colors.brassDark },
   mine: { backgroundColor: colors.brassLight },
   mineText: { fontSize: 13, color: colors.brassDark, fontWeight: '700' },
-  quote: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, paddingVertical: 6 },
-  quoteSource: { fontSize: font.small, fontWeight: '700', color: colors.text },
-  quotePrice: { fontSize: font.large, fontWeight: '800', color: colors.text },
 });

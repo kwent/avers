@@ -96,6 +96,14 @@ const fr = {
     grade: 'État estimé',
     comparables: 'Pièces comparables chez les marchands',
     match: 'Trouvée dans le catalogue',
+    matchWhy: (criteria: string[], similarity: number | null) => {
+      const facts = criteria.includes('reference') ? 'même référence, année et atelier' : 'même pays, valeur, année et atelier';
+      return similarity != null ? `${facts} ; photos ressemblantes à ${Math.round(similarity * 100)} %` : facts;
+    },
+    basisListings: (n: number, years: string | null) =>
+      `Prix calculé à partir de ${n} annonce${n > 1 ? 's' : ''} du catalogue${years ? ` (${years})` : ''}, les plus récentes comptant davantage.`,
+    basisMetal: (melt: string, pct: number) => `Le métal seul vaut ${melt}, soit ${pct} % du prix boutique.`,
+    basisResale: 'Entre particuliers, comptez environ 80 % du prix boutique.',
     noMatch: 'Pas de correspondance exacte dans le catalogue : les faits viennent de la lecture des photos.',
     noPrice: 'Pas assez de données de marché pour estimer un prix fiable. Seule la valeur du métal est sûre.',
     priceByGrade: 'Prix selon l’état',
@@ -103,10 +111,6 @@ const fr = {
     colResale: 'Revente',
     yourGrade: 'votre pièce',
     priceNote: 'Revente entre particuliers ≈ 80 % du prix boutique. Les anciens prix sont ramenés au cours actuel du métal.',
-    marketQuotes: 'Prix relevés sur le marché',
-    quoteSold: 'vendu',
-    quoteListing: 'en vente',
-    adjusted: (price: string) => `${price} au cours actuel du métal`,
     inStock: 'En vente',
     sold: (year: string) => `Vendu (${year})`,
     confidence: { high: 'Identification sûre', medium: 'Identification probable', low: 'Identification incertaine' },

@@ -26,3 +26,42 @@ def offline_prices(monkeypatch):
     """No network in tests: fixed spot prices and FX rates."""
     monkeypatch.setattr(metals, "spot_usd_per_oz", lambda metal: SPOT_USD.get(metal))
     monkeypatch.setattr(metals, "usd_rates", lambda: RATES)
+
+
+@pytest.fixture
+def catalog_1851():
+    """Listings of the 10 Francs Cérès 1851 A in the shared test catalog (TTB 600 €, SUP 1000 €), removed after."""
+    from datetime import date
+
+    from app import main
+    from app.db import upsert_coin
+
+    db = main.catalog_db
+    ids = []
+    for sid, grade, price in (("p1", "TTB", 600), ("p2", "SUP", 1000)):
+        ids.append(
+            upsert_coin(
+                db,
+                {
+                    "source": "test",
+                    "source_id": sid,
+                    "name": f"FRANCE-1851A-10 Francs 2e République G. 1012 {grade}",
+                    "url": f"https://example.com/{sid}",
+                    "country_iso": "FR",
+                    "year": 1851,
+                    "face_value": 10,
+                    "metal": "Or",
+                    "weight_g": 3.22,
+                    "grade": grade,
+                    "price": price,
+                    "currency": "EUR",
+                    "in_stock": 1,
+                    "modified": f"{date.today().year}-01-01",
+                },
+                [],
+            )
+        )
+    db.commit()
+    yield ids
+    db.execute(f"DELETE FROM coins WHERE id IN ({','.join('?' * len(ids))})", ids)
+    db.commit()

@@ -8,4 +8,4 @@ Coin identification + valuation app. See README.md for architecture.
 Rules:
 - Never commit anything under `data/` or `backend/scrapers/` (git-ignored on purpose).
 - Keep price sources pluggable (`coins.source`) and amounts currency-aware; the UI is French, large-text and accessible (≥56px touch targets).
-- Claude calls live in `backend/app/identify.py` (model `claude-opus-5-5`, structured outputs, server-side refusal fallbacks).
+- One Claude call per estimate, in `backend/app/identify.py` (model `claude-opus-5-5`, structured outputs, server-side refusal fallbacks). Matching (`app/matching.py`) and pricing (`app/pricing.py`) are plain code: keep them LLM-free.

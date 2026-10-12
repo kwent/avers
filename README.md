@@ -4,9 +4,10 @@
 
 Avers is a small mobile app for coin collectors. You photograph a coin from both sides and it:
 
-- **identifies** the coin (country, year, mint, denomination, type, catalog references) with Claude vision,
+- **identifies** the coin (country, year, mint, denomination, type, catalog references) with Claude vision, then
+  finds it in the catalog, which is the source of truth for its facts and prices,
 - **estimates its condition** on the French grading scale (B · TB · TTB · SUP · SPL · FDC),
-- **values it** against comparable dealer listings, with an estimated range and typical shop prices,
+- **values it** from the catalog listings of that exact coin, per grade, with shop and private-resale prices,
 - computes the **melt value** of its precious metal content from live spot prices,
 - keeps a **personal collection** with quantities, notes and a running total value.
 
@@ -22,13 +23,11 @@ data/     local only (git-ignored): catalog database, images, collection, upload
 
 ```
 phone ──photos──▶ POST /estimate
-                   ├─ Claude: read the photos (or refuse: not a coin / unidentifiable)
-                   ├─ visual index (DINOv2 over catalog photos): look-alike catalog coins   ┐ in parallel
-                   ├─ Claude: which catalog candidate is this exact coin? → catalog facts win │
-                   ├─ Claude + web search: recent auction results and dealer prices          ┘
-                   ├─ pricing (plain code): price per grade from catalog + web, old prices
-                   │    brought to today's metal price, never below melt
-                   └─ Claude: explain the numbers
+                   ├─ Claude: read the photos (or refuse: not a coin / unidentifiable)   ← the only LLM call
+                   ├─ matching (plain rules): catalog listings with the same country, value, year, mint,
+                   │    reference — confirmed by visual similarity (local DINOv2 over catalog photos)
+                   └─ pricing (plain code): price per grade from those listings, old prices brought to
+                        today's metal price, never below melt; no listing → no price, never a guess
        ◀─result─┘
 phone ──save──▶ POST /collection  (separate SQLite file, never touched by catalog imports)
 ```

@@ -8,7 +8,7 @@ import { Comparable, Estimate } from '../lib/api';
 import { confidence, gradeName, metalName, money, number, range, sourceLabel } from '../lib/format';
 import { colors, font } from '../lib/theme';
 import { CopyButton, CopyProvider, CopyRow, useCopy } from './Copy';
-import { MatchCard, PriceTable, QuoteList } from './Market';
+import { MatchCard, PriceTable } from './Market';
 import { Card, Label, Pill } from './ui';
 
 type Field = { id: string; label: string; value: string };
@@ -46,12 +46,25 @@ function summary(est: Estimate, m: Messages, locale: string): string {
   }
   if (est.melt) lines.push(`${m.estimate.meltShort} : ${money(est.melt.value, cur, locale, 2)}`);
   lines.push('', ...detailFields(est, m, locale).map((f) => `${f.label} : ${f.value}`));
-  for (const text of [coin.grade_notes, coin.notes, v?.explanation]) if (text) lines.push('', text);
+  for (const text of [coin.grade_notes, coin.notes, v && explanation(est, m, locale)]) if (text) lines.push('', text);
   return lines
     .filter((l) => l != null)
     .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/** Plain-language basis of the price, written from the numbers (no generated text). */
+function explanation(est: Estimate, m: Messages, locale: string): string {
+  const v = est.valuation;
+  if (!v) return '';
+  if (!v.basis) return v.explanation ?? '';
+  const { listings, first_year, last_year, metal_share } = v.basis;
+  const years = first_year && last_year ? (first_year === last_year ? `${first_year}` : `${first_year}–${last_year}`) : null;
+  const parts = [m.estimate.basisListings(listings, years)];
+  if (est.melt && metal_share != null) parts.push(m.estimate.basisMetal(money(est.melt.value, est.currency, locale), Math.round(metal_share * 100)));
+  parts.push(m.estimate.basisResale);
+  return parts.join(' ');
 }
 
 export function EstimateView(props: { est: Estimate; photos: (string | undefined)[] }) {
@@ -149,7 +162,7 @@ function EstimateContent({ est, photos }: { est: Estimate; photos: (string | und
               </Text>
             )}
             <Text style={styles.explain} selectable>
-              {est.valuation.explanation}
+              {explanation(est, m, locale)}
             </Text>
           </>
         ) : (
@@ -200,8 +213,6 @@ function EstimateContent({ est, photos }: { est: Estimate; photos: (string | und
           </Text>
         )}
       </Card>
-
-      <QuoteList quotes={est.market_quotes ?? []} currency={cur} />
 
       {comparables.length > 0 && (
         <View style={{ gap: 10 }}>

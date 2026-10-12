@@ -99,23 +99,43 @@ class Index:
     def __len__(self) -> int:
         return len(self.coin_ids)
 
-    def search(self, photos: list[bytes], k: int = 12) -> list[tuple[int, float]]:
-        """Top-k (coin_id, score) for the user's photos; score = mean over photos of the best image similarity."""
-        if self.matrix is None or not photos:
-            return []
-        per_photo = []
+    def _per_photo_best(self, photos: list[bytes], mask: np.ndarray | None = None) -> list[dict[int, float]]:
+        """For each user photo: {coin_id: best similarity over that coin's images and the query rotations}."""
+        ids, matrix = self.coin_ids, self.matrix
+        if mask is not None:
+            ids, matrix = ids[mask], matrix[mask]
+        out = []
         for data in photos:
             queries = embed(rotations(square(Image.open(io.BytesIO(data)))))
-            sims = (queries @ self.matrix.T).max(axis=0)  # best rotation per catalog image
+            sims = (queries @ matrix.T).max(axis=0)  # best rotation per catalog image
             best: dict[int, float] = {}
-            for coin_id, sim in zip(self.coin_ids.tolist(), sims.tolist(), strict=True):
+            for coin_id, sim in zip(ids.tolist(), sims.tolist(), strict=True):
                 if sim > best.get(coin_id, -1.0):
                     best[coin_id] = sim
-            per_photo.append(best)
-        coins = set().union(*per_photo)
-        scored = [(c, float(np.mean([p.get(c, 0.0) for p in per_photo]))) for c in coins]
-        scored.sort(key=lambda x: -x[1])
-        return scored[:k]
+            out.append(best)
+        return out
+
+    @staticmethod
+    def _combine(per_photo: list[dict[int, float]]) -> dict[int, float]:
+        """Score = mean over the user's photos of each coin's best image similarity."""
+        coins = set().union(*per_photo) if per_photo else set()
+        return {c: float(np.mean([p.get(c, 0.0) for p in per_photo])) for c in coins}
+
+    def search(self, photos: list[bytes], k: int = 12) -> list[tuple[int, float]]:
+        """Top-k (coin_id, score) over the whole catalog."""
+        if self.matrix is None or not photos:
+            return []
+        scores = self._combine(self._per_photo_best(photos))
+        return sorted(scores.items(), key=lambda x: -x[1])[:k]
+
+    def scores(self, photos: list[bytes], coin_ids: list[int]) -> dict[int, float]:
+        """Similarity of the user's photos to specific catalog coins (coins without images are left out)."""
+        if self.matrix is None or not photos or not coin_ids:
+            return {}
+        mask = np.isin(self.coin_ids, coin_ids)
+        if not mask.any():
+            return {}
+        return self._combine(self._per_photo_best(photos, mask))
 
 
 def build(db: sqlite3.Connection) -> None:

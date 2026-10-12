@@ -43,8 +43,9 @@ tags: [e2e]
     element: "VALEUR DU MÉTAL \\(MINIMUM\\)"
 - scrollUntilVisible:
     element: "PRIX SELON L’ÉTAT"
-- assertVisible:
-    id: "price-SUP"
+- scrollUntilVisible:
+    element:
+      id: "price-SUP"
 - scrollUntilVisible:
     element:
       id: "copy-year"

@@ -1,0 +1,55 @@
+import pytest
+
+from app import main, matching
+from tests.test_catalog import make_coin
+
+
+class FakeIndex:
+    def __init__(self, scores):
+        self._scores = scores
+
+    def __len__(self):
+        return 1
+
+    def scores(self, photos, ids):
+        return {i: s for i, s in self._scores.items() if i in ids}
+
+
+@pytest.mark.parametrize(
+    "name,mint,refs",
+    [
+        ("FRANCE-1851A-10 Francs 2e République G. 1012 TTBSUP", "A", {"1012"}),
+        ("FRANCE-1717 W-Ecu Vertugadin-Lille", "W", set()),
+        ("FRANCE-1854-A-10 FRANCS-NAPOLEON III", "A", set()),
+        ("HONGRIE-1911 KB-10 Korona-PCGS MS61", "KB", set()),
+        ("FRANCE-1960-5 FRANCS SEMEUSE", None, set()),
+        ("FRANCE-1855BB-10 Francs 5 plus bas  G. 1014 TBTTB", "BB", {"1014"}),
+    ],
+)
+def test_listing_parsing(name, mint, refs):
+    assert matching.listing_mint(name) == mint
+    assert matching.listing_refs(name) == refs
+
+
+def test_reference_match_without_visual_index(catalog_1851):
+    m = matching.find(main.catalog_db, make_coin(), [b""], None)
+    assert m.row["id"] in catalog_1851 and {r["id"] for r in m.same} == set(catalog_1851)
+
+
+def test_other_mint_is_not_the_same_coin(catalog_1851):
+    assert matching.find(main.catalog_db, make_coin(mint_mark="BB"), [b""], None) is None
+
+
+def test_facts_without_reference_need_visual_confirmation(catalog_1851):
+    coin = make_coin(catalog_refs=[])
+    assert matching.find(main.catalog_db, coin, [b""], None) is None  # facts alone are not enough
+    a, b = catalog_1851
+    m = matching.find(main.catalog_db, coin, [b""], FakeIndex({a: 0.9, b: 0.88}))
+    assert m.row["id"] == a and m.similarity == 0.9 and len(m.same) == 2
+    assert matching.find(main.catalog_db, coin, [b""], FakeIndex({a: 0.5, b: 0.4})) is None  # looks different
+
+
+def test_visual_outlier_is_not_counted_as_the_same_type(catalog_1851):
+    a, b = catalog_1851
+    m = matching.find(main.catalog_db, make_coin(), [b""], FakeIndex({a: 0.92, b: 0.70}))
+    assert [r["id"] for r in m.same] == [a]

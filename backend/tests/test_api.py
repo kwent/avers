@@ -1,5 +1,4 @@
 import io
-from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,16 +16,6 @@ def jpeg() -> bytes:
     return buf.getvalue()
 
 
-THIS_YEAR = date.today().year
-
-
-def quote(price=1000.0, grade="TTB", year=THIS_YEAR, kind="sold"):
-    return identify.MarketQuote(
-        source="Test", url="https://example.com", grade=grade, grade_text=grade, price=price, currency="EUR",
-        year=year, kind=kind,
-    )  # fmt: skip
-
-
 @pytest.fixture
 def fake_claude(monkeypatch):
     calls = {}
@@ -36,9 +25,6 @@ def fake_claude(monkeypatch):
         return make_coin()
 
     monkeypatch.setattr(identify, "identify", fake_identify)
-    monkeypatch.setattr(identify, "market_quotes", lambda description: [quote(), quote(), quote()])
-    monkeypatch.setattr(identify, "explain", lambda context, language: "test")
-    monkeypatch.setattr(identify, "match", lambda *a, **k: pytest.fail("no catalog candidates expected"))
     return calls
 
 
@@ -46,7 +32,7 @@ def test_health():
     assert client.get("/health").json()["ok"] is True
 
 
-def test_estimate_then_collection_roundtrip(fake_claude):
+def test_estimate_then_collection_roundtrip(fake_claude, catalog_1851):
     res = client.post(
         "/estimate",
         files={"front": ("f.jpg", jpeg(), "image/jpeg"), "back": ("b.jpg", jpeg(), "image/jpeg")},
@@ -56,9 +42,9 @@ def test_estimate_then_collection_roundtrip(fake_claude):
     est = res.json()
     assert est["identification"]["year"] == 1851
     assert est["melt"]["metal"] == "gold"
-    # TTB quotes at 1000 € retail -> private resale 80%
-    assert est["valuation"]["value_low"] == 800
-    assert est["valuation"]["retail_low"] == 1000
+    # coin graded TTB; catalog lists TTB 600 € / SUP 1000 € -> TTB retail 600, private resale 80%
+    assert est["valuation"]["retail_low"] == 600
+    assert est["valuation"]["value_low"] == 480
     assert est["already_owned"] == 0
 
     # uploaded photo is downsized and served back
@@ -71,7 +57,7 @@ def test_estimate_then_collection_roundtrip(fake_claude):
 
     col = client.get("/collection", params={"currency": "EUR"}).json()
     assert col["totals"]["count"] == 3
-    assert col["totals"]["value_low"] == 2400
+    assert col["totals"]["value_low"] == 3 * 480
     assert col["totals"]["melt"] > 0
 
     # scanning the same coin again warns that it is already owned
@@ -108,7 +94,6 @@ def test_prompts_name_the_language():
 @pytest.mark.parametrize("status", ["not_a_coin", "unidentifiable"])
 def test_estimate_never_values_what_it_cannot_identify(monkeypatch, status):
     monkeypatch.setattr(identify, "identify", lambda images, language: make_coin(status=status, title=""))
-    monkeypatch.setattr(identify, "market_quotes", lambda *a: pytest.fail("must not price an unidentified coin"))
     est = client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")}).json()
     assert est["identification"]["status"] == status
     assert est["valuation"] is None and est["melt"] is None and est["comparables"] == []

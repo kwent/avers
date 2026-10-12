@@ -59,7 +59,9 @@ export type Valuation = {
   retail_low: number | null;
   retail_high: number | null;
   best_match_ids: number[];
-  explanation: string;
+  // explanation text from older saved estimates; new ones carry `basis` and the app writes the text
+  explanation?: string;
+  basis?: { listings: number; first_year: number | null; last_year: number | null; metal_share: number | null };
 };
 
 export type CatalogMatch = {
@@ -69,20 +71,13 @@ export type CatalogMatch = {
   url: string;
   images: string[];
   confidence: number;
-  reason: string;
+  reason?: string; // older saved estimates
+  criteria?: ('country' | 'year' | 'face_value' | 'mint' | 'reference' | 'photo')[];
+  similarity?: number | null;
 };
 
 export type GradePrice = { grade: string; retail: number | null; resale: number | null; points: number };
 
-export type MarketQuote = {
-  source: string;
-  price: number;
-  adjusted: number | null;
-  grade: string | null;
-  year: number | null;
-  kind: 'sold' | 'listing';
-  url: string | null;
-};
 
 export type Estimate = {
   currency: string;
@@ -93,7 +88,6 @@ export type Estimate = {
   comparables: Comparable[];
   match: CatalogMatch | null;
   price_table: GradePrice[];
-  market_quotes: MarketQuote[];
   valuation: Valuation | null;
   valuation_error?: string;
   already_owned?: number;

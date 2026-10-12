@@ -89,6 +89,14 @@ const en: Messages = {
     grade: 'Estimated grade',
     comparables: 'Comparable coins from dealers',
     match: 'Found in the catalog',
+    matchWhy: (criteria, similarity) => {
+      const facts = criteria.includes('reference') ? 'same reference, year and mint' : 'same country, value, year and mint';
+      return similarity != null ? `${facts}; photos ${Math.round(similarity * 100)}% alike` : facts;
+    },
+    basisListings: (n, years) =>
+      `Price computed from ${n} catalog listing${n === 1 ? '' : 's'}${years ? ` (${years})` : ''}, recent ones counting more.`,
+    basisMetal: (melt, pct) => `The metal alone is worth ${melt}, ${pct}% of the shop price.`,
+    basisResale: 'Between private collectors, expect about 80% of the shop price.',
     noMatch: 'No exact match in the catalog: the facts come from reading the photos.',
     noPrice: 'Not enough market data for a reliable price. Only the metal value is certain.',
     priceByGrade: 'Price by grade',
@@ -96,10 +104,6 @@ const en: Messages = {
     colResale: 'Resale',
     yourGrade: 'your coin',
     priceNote: 'Private resale ≈ 80% of the shop price. Older prices are brought to today’s metal price.',
-    marketQuotes: 'Market prices found',
-    quoteSold: 'sold',
-    quoteListing: 'for sale',
-    adjusted: (price) => `${price} at today’s metal price`,
     inStock: 'For sale',
     sold: (year) => `Sold (${year})`,
     confidence: { high: 'Confident identification', medium: 'Probable identification', low: 'Uncertain identification' },
