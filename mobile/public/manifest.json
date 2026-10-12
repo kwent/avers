@@ -1,0 +1,17 @@
+{
+  "name": "Avers",
+  "short_name": "Avers",
+  "description": "Photographier une pièce, savoir ce qu'elle est et ce qu'elle vaut.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#17130E",
+  "theme_color": "#17130E",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
