@@ -1,0 +1,25 @@
+# Local data: catalog database, downloaded images, the user's collection and photos
+data/
+
+# Catalog import tooling is kept private
+backend/scrapers/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
