@@ -1,15 +1,26 @@
-"""Claude calls: identify a coin from photos, then value it against catalog comparables."""
+"""The one vision-model call per estimate: read the coin from the photos (or refuse: not a coin / unidentifiable).
+
+Goes through the Vercel AI Gateway (OpenAI-compatible API), so the model is a setting, not code. The default was
+picked with bench/models.py: Gemini Flash-Lite reads coins as well as the large models here, at a fraction of
+the cost and latency; the gateway falls back to the next model if it fails.
+"""
 
 import base64
+import html
+import json
+import os
+import urllib.error
+import urllib.request
 from typing import Literal
 
-import anthropic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
-MODEL = "claude-opus-5-5"
-FALLBACK_BETA = "server-side-fallback-2026-07-01"
+from app.http import SSL_CTX
 
-client = anthropic.Anthropic()
+GATEWAY_URL = os.environ.get("AI_GATEWAY_URL", "https://ai-gateway.vercel.sh/v1")
+MODEL = os.environ.get("VISION_MODEL", "google/gemini-3.5-flash-lite")
+FALLBACK_MODELS = [m for m in os.environ.get("VISION_FALLBACK_MODELS", "google/gemini-3.8-flash").split(",") if m]
+TIMEOUT = 90
 
 Metal = Literal[
     "gold",
@@ -32,6 +43,15 @@ Side = Literal["obverse", "reverse", "unclear"]
 
 # Below this self-reported confidence an identification is treated as unidentifiable.
 MIN_CONFIDENCE = 0.5
+
+
+class VisionError(RuntimeError):
+    """The vision model could not be reached or gave no usable answer."""
+
+    def __init__(self, message: str, status: int | None = None, retry_after: float | None = None):
+        super().__init__(message)
+        self.status = status  # HTTP status from the gateway, if any
+        self.retry_after = retry_after
 
 
 class CoinIdentification(BaseModel):
@@ -90,53 +110,94 @@ side twice: report what each photo really shows in photo_sides.
 Write every free-text field (title, country_name, denomination, type_name, notes, status_reason) in {language}."""
 
 
-def _image_block(data: bytes, media_type: str) -> dict:
-    return {
-        "type": "image",
-        "source": {"type": "base64", "media_type": media_type, "data": base64.standard_b64encode(data).decode()},
-    }
+def _strict(schema: dict) -> dict:
+    """Strict JSON schema (every property required, no extras), as structured outputs expect."""
+    if isinstance(schema, dict):
+        if schema.get("type") == "object" and "properties" in schema:
+            schema["additionalProperties"] = False
+            schema["required"] = list(schema["properties"])
+        for v in schema.values():
+            _strict(v)
+    elif isinstance(schema, list):
+        for v in schema:
+            _strict(v)
+    return schema
 
 
-def _parse(messages: list, max_continuations: int = 3, **kwargs):
-    response = None
-    for _ in range(max_continuations + 1):
-        response = client.beta.messages.parse(
-            model=MODEL,
-            max_tokens=16000,
-            betas=[FALLBACK_BETA],
-            fallbacks="default",
-            messages=messages,
-            **kwargs,
-        )
-        if response.stop_reason != "pause_turn":
-            break
-        # server-side tool loop (web search) paused: resend the turn as-is and the server resumes it
-        messages = [*messages, {"role": "assistant", "content": response.content}]
-    if response.stop_reason == "refusal":
-        raise RuntimeError("Claude declined to analyse this image")
-    if response.parsed_output is None:
-        raise RuntimeError(f"No structured output (stop_reason={response.stop_reason})")
-    return response.parsed_output
+SCHEMA = _strict(CoinIdentification.model_json_schema())
 
 
 def language_name(code: str) -> str:
     return LANGUAGES.get(code, LANGUAGES[DEFAULT_LANGUAGE])
 
 
-def identify(images: list[tuple[bytes, str]], language: str = DEFAULT_LANGUAGE) -> CoinIdentification:
-    """images: [(bytes, media_type)] — front first, then back."""
+def _request(body: dict) -> dict:
+    key = os.environ.get("AI_GATEWAY_API_KEY")
+    if not key:
+        raise VisionError("AI_GATEWAY_API_KEY is not set")
+    req = urllib.request.Request(
+        f"{GATEWAY_URL}/chat/completions",
+        data=json.dumps(body).encode(),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT, context=SSL_CTX) as resp:
+            return json.load(resp)
+    except urllib.error.HTTPError as e:
+        retry_after = e.headers.get("Retry-After") if e.headers else None
+        raise VisionError(
+            f"vision model error {e.code}: {e.read().decode(errors='replace')[:300]}",
+            status=e.code,
+            retry_after=float(retry_after) if retry_after and retry_after.isdigit() else None,
+        ) from e
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise VisionError(f"vision model unreachable: {e}") from e
+
+
+def read(
+    images: list[tuple[bytes, str]], language: str = DEFAULT_LANGUAGE, model: str | None = None
+) -> tuple[CoinIdentification, dict]:
+    """images: [(bytes, media_type)] — front first, then back. Returns the reading and the raw response."""
     content = []
     labels = ["Photo 1 (meant to be the obverse)", "Photo 2 (meant to be the reverse)"]
     for label, (data, media_type) in zip(labels[: len(images)], images, strict=True):
-        content += [{"type": "text", "text": label}, _image_block(data, media_type)]
+        url = f"data:{media_type};base64,{base64.standard_b64encode(data).decode()}"
+        content += [{"type": "text", "text": label}, {"type": "image_url", "image_url": {"url": url}}]
     content.append({"type": "text", "text": "What is this? Identify the coin only if you really can."})
-    coin = _parse(
-        system=IDENTIFY_PROMPT.format(language=language_name(language)),
-        output_config={"effort": "medium"},
-        messages=[{"role": "user", "content": content}],
-        output_format=CoinIdentification,
-    )
-    return enforce_confidence(coin)
+    body = {
+        "model": model or MODEL,
+        "messages": [
+            {"role": "system", "content": IDENTIFY_PROMPT.format(language=language_name(language))},
+            {"role": "user", "content": content},
+        ],
+        "response_format": {"type": "json_schema", "json_schema": {"name": "coin", "schema": SCHEMA, "strict": True}},
+        "max_tokens": 8000,
+    }
+    if model is None and FALLBACK_MODELS:
+        body["providerOptions"] = {"gateway": {"models": FALLBACK_MODELS}}
+    resp = _request(body)
+    try:
+        text = (resp["choices"][0]["message"]["content"] or "").strip()
+        if text.startswith("```"):  # some models wrap JSON in a code fence despite structured outputs
+            text = text.strip("`").removeprefix("json")
+        coin = _unescape(CoinIdentification.model_validate_json(text))
+    except (KeyError, IndexError, ValidationError) as e:
+        raise VisionError(f"no usable answer from {resp.get('model', body['model'])}") from e
+    return enforce_confidence(coin), resp
+
+
+def _unescape(coin: CoinIdentification) -> CoinIdentification:
+    """Some models HTML-escape accents in JSON strings ('C&#233;r&#232;s')."""
+    for name, value in coin:
+        if isinstance(value, str):
+            setattr(coin, name, html.unescape(value))
+        elif isinstance(value, list):
+            setattr(coin, name, [html.unescape(v) if isinstance(v, str) else v for v in value])
+    return coin
+
+
+def identify(images: list[tuple[bytes, str]], language: str = DEFAULT_LANGUAGE) -> CoinIdentification:
+    return read(images, language)[0]
 
 
 def enforce_confidence(coin: CoinIdentification) -> CoinIdentification:

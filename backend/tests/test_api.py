@@ -17,7 +17,7 @@ def jpeg() -> bytes:
 
 
 @pytest.fixture
-def fake_claude(monkeypatch):
+def fake_vision(monkeypatch):
     calls = {}
 
     def fake_identify(images, language):
@@ -32,7 +32,7 @@ def test_health():
     assert client.get("/health").json()["ok"] is True
 
 
-def test_estimate_then_collection_roundtrip(fake_claude, catalog_1851):
+def test_estimate_then_collection_roundtrip(fake_vision, catalog_1851):
     res = client.post(
         "/estimate",
         files={"front": ("f.jpg", jpeg(), "image/jpeg"), "back": ("b.jpg", jpeg(), "image/jpeg")},
@@ -80,10 +80,10 @@ def test_token_required_when_configured(monkeypatch):
 
 
 @pytest.mark.parametrize("sent,used", [("en", "en"), ("fr", "fr"), ("xx", "fr")])
-def test_estimate_language(fake_claude, sent, used):
+def test_estimate_language(fake_vision, sent, used):
     res = client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")}, data={"language": sent})
     assert res.json()["language"] == used
-    assert fake_claude["language"] == used
+    assert fake_vision["language"] == used
 
 
 def test_prompts_name_the_language():
@@ -114,7 +114,7 @@ def test_low_confidence_is_downgraded():
         (["unclear", "unclear"], False, None),
     ],
 )
-def test_photo_sides(fake_claude, monkeypatch, sides, swapped, warning):
+def test_photo_sides(fake_vision, monkeypatch, sides, swapped, warning):
     monkeypatch.setattr(identify, "identify", lambda images, language: make_coin(photo_sides=sides))
     est = client.post(
         "/estimate",

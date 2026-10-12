@@ -9,7 +9,6 @@ import os
 import secrets
 import uuid
 
-import anthropic
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
@@ -18,7 +17,7 @@ from pydantic import BaseModel
 from app import collection, framecheck, identify, metals, pipeline, visual
 from app.db import IMAGES_DIR, connect
 
-MAX_SIDE = 1568  # Claude downsizes anything larger anyway
+MAX_SIDE = 1568  # vision models downsize anything larger anyway
 APP_TOKEN = os.environ.get("APP_TOKEN")  # optional shared secret once exposed beyond the LAN
 
 
@@ -84,10 +83,8 @@ def estimate(
     photos = [_normalize_photo(front)] + ([_normalize_photo(back)] if back else [])
     try:
         return pipeline.run(photos, currency, language, catalog_db, collection_db, visual_index)
-    except anthropic.APIError as e:
+    except identify.VisionError as e:
         raise HTTPException(502, f"identification failed: {e}") from e
-    except RuntimeError as e:
-        raise HTTPException(422, str(e)) from e
 
 
 @app.get("/catalog/search")

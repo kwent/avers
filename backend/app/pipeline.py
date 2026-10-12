@@ -1,6 +1,6 @@
-"""The /estimate pipeline: one Claude call to read the photos; the catalog is the source of truth for the rest.
+"""The /estimate pipeline: one vision-model call to read the photos; the catalog is the source of truth for the rest.
 
-1. Claude reads the photos (identify) — the only LLM call.
+1. A vision model reads the photos (identify) — the only AI call.
 2. Plain rules + local visual similarity find the catalog entry (app.matching); its facts override the reading.
 3. Prices come from the catalog listings of that coin, computed in app.pricing.
 """
@@ -29,9 +29,10 @@ def _apply_catalog_facts(coin: identify.CoinIdentification, row: sqlite3.Row) ->
         coin.weight_g = row["weight_g"]
     if CATALOG_METAL.get(row["metal"] or ""):
         coin.metal = CATALOG_METAL[row["metal"]]
-    have = matching.gadoury_refs(coin.catalog_refs)
-    for ref in sorted(matching.listing_refs(row["name"]) - have):
-        coin.catalog_refs.insert(0, f"G. {ref}")
+    listed = matching.listing_refs(row["name"])
+    if listed:  # the listing's Gadoury numbers replace whatever the reading claimed
+        others = [r for r in coin.catalog_refs if not matching.gadoury_refs([r])]
+        coin.catalog_refs = [f"G. {ref}" for ref in sorted(listed)] + others
 
 
 def run(

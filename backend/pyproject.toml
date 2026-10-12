@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Avers API: identify coins from photos and estimate their value"
 requires-python = ">=3.13"
 dependencies = [
-    "anthropic>=1.13.0",
     "fastapi>=0.143.0",
     "numpy>=2.5.4",
     "opencv-python-headless>=5.0.0.93",
@@ -22,7 +21,7 @@ vision = [
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
+    "httpx2>=2.13.1",
     "pytest>=9.1.1",
     "ruff>=0.17.0",
 ]

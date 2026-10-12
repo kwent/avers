@@ -1,4 +1,4 @@
-# A photo of a glass must be refused, not guessed (real Claude call).
+# A photo of a glass must be refused, not guessed (real vision-model call).
 appId: host.exp.Exponent
 name: Not a coin
 tags: [e2e]

@@ -8,4 +8,4 @@ Coin identification + valuation app. See README.md for architecture.
 Rules:
 - Never commit anything under `data/` or `backend/scrapers/` (git-ignored on purpose).
 - Keep price sources pluggable (`coins.source`) and amounts currency-aware; the UI is French, large-text and accessible (≥56px touch targets).
-- One Claude call per estimate, in `backend/app/identify.py` (model `claude-opus-5-5`, structured outputs, server-side refusal fallbacks). Matching (`app/matching.py`) and pricing (`app/pricing.py`) are plain code: keep them LLM-free.
+- One vision-model call per estimate, in `backend/app/identify.py`, through the Vercel AI Gateway (OpenAI-compatible API, strict JSON schema, gateway fallback models). The model is configuration (`VISION_MODEL`); compare candidates with `bench/models.py` before changing the default. Matching (`app/matching.py`) and pricing (`app/pricing.py`) are plain code: keep them LLM-free.

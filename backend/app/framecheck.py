@@ -1,4 +1,4 @@
-"""Fast, local quality check of a camera frame before the real capture (no Claude call).
+"""Fast, local quality check of a camera frame before the real capture (no AI call).
 
 The app sends the square crop around its on-screen guide circle; the guide circle is centred
 with diameter = side / GUIDE_PADDING. We look for the coin and grade framing, focus and light.

@@ -1,4 +1,4 @@
-# Full journey: pick the two coin photos → estimate (real Claude call) → save → collection total → delete.
+# Full journey: pick the two coin photos → estimate (real vision-model call) → save → collection total → delete.
 # Requires the fixture photos in the simulator library (scripts/e2e-ios.sh adds them).
 appId: host.exp.Exponent
 name: Estimate and collect

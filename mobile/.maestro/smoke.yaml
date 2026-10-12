@@ -1,4 +1,4 @@
-# Navigation and API connectivity. No Claude call.
+# Navigation and API connectivity. No AI call.
 appId: host.exp.Exponent
 name: Smoke
 tags: [smoke]

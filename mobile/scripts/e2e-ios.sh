@@ -62,6 +62,11 @@ if [[ $START_EXPO == 1 ]]; then
   until curl -sf http://localhost:8081/status >/dev/null; do sleep 2; done
 fi
 
+if [[ -z "${AI_GATEWAY_API_KEY:-}" ]]; then
+  echo "AI_GATEWAY_API_KEY is not set: the estimate flows need the vision model" >&2
+  exit 1
+fi
+
 port="${E2E_API_PORT:-8001}"
 api_data="$(mktemp -d)"
 (

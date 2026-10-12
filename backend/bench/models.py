@@ -1,6 +1,6 @@
-"""Benchmark vision models on coin reading, through the Vercel AI Gateway (OpenAI-compatible API).
+"""Benchmark vision models on coin reading, through the Vercel AI Gateway.
 
-Every model gets the production prompt and schema (app.identify) on:
+Every model goes through the production call (app.identify.read: same prompt, schema and parsing) on:
 - catalog coins of known identity (two catalog photos each, sampled per country),
 - real phone photos of a known coin (in order, then swapped),
 - traps: the same photo blurred beyond reading, and a photo that is not a coin.
@@ -13,19 +13,14 @@ Run from backend/ (needs data/coins.sqlite, its images, and the e2e fixtures):
 Raw results: data/bench/models-<timestamp>.json (git-ignored).
 """
 
-import base64
 import io
 import json
-import os
 import random
 import re
 import sqlite3
-import ssl
 import sys
 import threading
 import time
-import urllib.error
-import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -33,8 +28,8 @@ from PIL import Image, ImageFilter
 
 from app import identify, matching
 from app.db import DB_PATH, IMAGES_DIR
+from app.http import get_json
 
-GATEWAY = "https://ai-gateway.vercel.sh/v1"
 FIXTURES = Path(__file__).resolve().parents[2] / "mobile/.maestro/fixtures"
 OUT_DIR = DB_PATH.parent / "bench"
 PHONE_COIN_ID = 13675  # catalog listing of the coin in the phone fixtures (10 Francs Cérès 1851 A)
@@ -57,33 +52,11 @@ DEFAULT_MODELS = [
     "alibaba/qwen3.8-flash",
 ]
 
-SSL = ssl.create_default_context(cafile="/etc/ssl/cert.pem" if Path("/etc/ssl/cert.pem").exists() else None)
-
-
-def _get(url: str, body: dict | None = None, timeout: int = 180) -> dict:
-    headers = {"Authorization": f"Bearer {os.environ['AI_GATEWAY_API_KEY']}", "Content-Type": "application/json"}
-    data = json.dumps(body).encode() if body is not None else None
-    for attempt in range(RETRIES):
-        req = urllib.request.Request(url, data=data, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=timeout, context=SSL) as resp:
-                return json.load(resp)
-        except urllib.error.HTTPError as e:
-            if e.code != 429 and e.code < 500 or attempt == RETRIES - 1:
-                raise
-            wait = float(e.headers.get("Retry-After") or 2 ** (attempt + 1))
-        except (urllib.error.URLError, TimeoutError):
-            if attempt == RETRIES - 1:
-                raise
-            wait = 2 ** (attempt + 1)
-        time.sleep(min(wait, 60) * random.uniform(1, 1.5))
-    raise AssertionError("unreachable")
-
 
 def prices() -> dict[str, tuple[float, float]]:
     """model id -> (USD per input token, USD per output token)."""
     out = {}
-    for m in _get(f"{GATEWAY}/models")["data"]:
+    for m in get_json(f"{identify.GATEWAY_URL}/models")["data"]:
         p = m.get("pricing") or {}
         if p.get("input"):
             out[m["id"]] = (float(p["input"]), float(p.get("output", 0)))
@@ -152,51 +125,21 @@ def cases(db: sqlite3.Connection) -> list[dict]:
     return out
 
 
-def _strict_schema() -> dict:
-    schema = identify.CoinIdentification.model_json_schema()
-
-    def fix(node):
-        if isinstance(node, dict):
-            if node.get("type") == "object" and "properties" in node:
-                node["additionalProperties"] = False
-                node["required"] = list(node["properties"])
-            for v in node.values():
-                fix(v)
-        elif isinstance(node, list):
-            for v in node:
-                fix(v)
-
-    fix(schema)
-    return schema
-
-
-SCHEMA = _strict_schema()
-
-
 def read_coin(model: str, imgs: list[bytes]) -> tuple[identify.CoinIdentification, float, dict]:
-    content = []
-    labels = ["Photo 1 (meant to be the obverse)", "Photo 2 (meant to be the reverse)"]
-    for label, data in zip(labels, imgs, strict=False):
-        url = "data:image/jpeg;base64," + base64.b64encode(data).decode()
-        content += [{"type": "text", "text": label}, {"type": "image_url", "image_url": {"url": url}}]
-    content.append({"type": "text", "text": "What is this? Identify the coin only if you really can."})
-    body = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": identify.IDENTIFY_PROMPT.format(language="French")},
-            {"role": "user", "content": content},
-        ],
-        "response_format": {"type": "json_schema", "json_schema": {"name": "coin", "schema": SCHEMA, "strict": True}},
-        "max_tokens": 8000,
-    }
-    t = time.monotonic()
-    resp = _get(f"{GATEWAY}/chat/completions", body)
-    elapsed = time.monotonic() - t
-    text = resp["choices"][0]["message"]["content"].strip()
-    if text.startswith("```"):
-        text = text.strip("`").removeprefix("json")
-    coin = identify.enforce_confidence(identify.CoinIdentification.model_validate_json(text))
-    return coin, elapsed, resp.get("usage") or {}
+    """Production call, retried on rate limits and transient errors with exponential backoff."""
+    for attempt in range(RETRIES):
+        t = time.monotonic()
+        try:
+            coin, resp = identify.read([(data, "image/jpeg") for data in imgs], "fr", model=model)
+            return coin, time.monotonic() - t, resp.get("usage") or {}
+        except identify.VisionError as e:
+            transient = e.status is None or e.status == 429 or e.status >= 500
+            if not transient or attempt == RETRIES - 1:
+                raise
+            wait = e.retry_after or 2 ** (attempt + 1)
+            print(f"  {model}: {e.status or 'network'} error, retry in {wait:.0f}s", flush=True)
+            time.sleep(min(wait, 60) * random.uniform(1, 1.5))
+    raise AssertionError("unreachable")
 
 
 _db_lock = threading.Lock()
@@ -224,25 +167,22 @@ def score(case: dict, coin: identify.CoinIdentification, db: sqlite3.Connection)
 
 def run(model: str, all_cases: list[dict], db: sqlite3.Connection, price: tuple[float, float]) -> list[dict]:
     def one(case):
-        err = ""
-        for _ in range(2):
-            try:
-                coin, elapsed, usage = read_coin(model, case["imgs"])
-            except urllib.error.HTTPError as e:
-                err = f"HTTP {e.code}: {e.read().decode()[:300]}"
-                continue
-            except Exception as e:  # malformed output, timeout...
-                err = f"{type(e).__name__}: {str(e)[:300]}"
-                continue
-            cost = usage.get("prompt_tokens", 0) * price[0] + usage.get("completion_tokens", 0) * price[1]
-            return {
-                "case": case["name"],
-                "seconds": elapsed,
-                "cost": cost,
-                "coin": coin.model_dump(),
-                **score(case, coin, db),
-            }
-        return {"case": case["name"], "error": err}
+        try:
+            coin, elapsed, usage = read_coin(model, case["imgs"])
+        except identify.VisionError as e:
+            print(f"  {model} {case['name']}: ERROR {str(e)[:120]}", flush=True)
+            return {"case": case["name"], "error": str(e)}
+        cost = usage.get("prompt_tokens", 0) * price[0] + usage.get("completion_tokens", 0) * price[1]
+        row = {
+            "case": case["name"],
+            "seconds": elapsed,
+            "cost": cost,
+            "coin": coin.model_dump(),
+            **score(case, coin, db),
+        }
+        verdict = row.get("candidate", row["status_ok"])
+        print(f"  {model} {case['name']}: {'ok' if verdict else 'miss'} ({coin.status}, {elapsed:.1f}s)", flush=True)
+        return row
 
     with ThreadPoolExecutor(WORKERS) as ex:
         return list(ex.map(one, all_cases))
@@ -278,7 +218,7 @@ def main() -> None:
     table = prices()
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     out = OUT_DIR / f"models-{time.strftime('%Y%m%d-%H%M%S')}.json"
-    print(f"{len(all_cases)} cases -> {out}")
+    print(f"{len(all_cases)} cases -> {out}", flush=True)
     results = {}
     for model in models:
         rows = run(model, all_cases, db, table.get(model, (0.0, 0.0)))

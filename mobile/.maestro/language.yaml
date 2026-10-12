@@ -1,4 +1,4 @@
-# Language setting: English UI, then back to French. No Claude call.
+# Language setting: English UI, then back to French. No AI call.
 appId: host.exp.Exponent
 name: Language
 tags: [smoke]

@@ -4,7 +4,7 @@
 
 Avers is a small mobile app for coin collectors. You photograph a coin from both sides and it:
 
-- **identifies** the coin (country, year, mint, denomination, type, catalog references) with Claude vision, then
+- **identifies** the coin (country, year, mint, denomination, type, catalog references) with a vision model, then
   finds it in the catalog, which is the source of truth for its facts and prices,
 - **estimates its condition** on the French grading scale (B · TB · TTB · SUP · SPL · FDC),
 - **values it** from the catalog listings of that exact coin, per grade, with shop and private-resale prices,
@@ -17,13 +17,13 @@ French UI with large text and big touch targets. Runs on iOS and Android.
 
 ```
 mobile/   Expo (React Native) app: camera → estimate → collection
-backend/  FastAPI service: Claude identification + valuation, catalog matching, spot prices, collection storage
+backend/  FastAPI service: vision identification, catalog matching, valuation, spot prices, collection storage
 data/     local only (git-ignored): catalog database, images, collection, uploaded photos
 ```
 
 ```
 phone ──photos──▶ POST /estimate
-                   ├─ Claude: read the photos (or refuse: not a coin / unidentifiable)   ← the only LLM call
+                   ├─ vision model: read the photos (or refuse: not a coin / unidentifiable)   ← the only AI call
                    ├─ matching (plain rules): catalog listings with the same country, value, year, mint,
                    │    reference — confirmed by visual similarity (local DINOv2 over catalog photos)
                    └─ pricing (plain code): price per grade from those listings, old prices brought to
@@ -39,7 +39,9 @@ phone ──save──▶ POST /collection  (separate SQLite file, never touched
 
 ### API
 
-Requires [uv](https://docs.astral.sh/uv/) and Anthropic credentials (`ant auth login`, or `ANTHROPIC_API_KEY`, see `backend/.env.example`).
+Requires [uv](https://docs.astral.sh/uv/) and a [Vercel AI Gateway](https://vercel.com/docs/ai-gateway) key in `AI_GATEWAY_API_KEY`
+(see `backend/.env.example`). The model is a setting (`VISION_MODEL`, default `google/gemini-3.5-flash-lite`,
+with `google/gemini-3.8-flash` as fallback), chosen with the benchmark below.
 
 ```bash
 cd backend
@@ -86,7 +88,17 @@ mobile/scripts/e2e-ios.sh                        # all flows; or pass a flow fil
 ```
 
 The script starts its own API on port 8001 with an empty, throwaway collection, so tests never touch real data.
-The full journey makes real Claude calls.
+The full journey makes real vision-model calls.
+
+### Choosing the vision model
+
+`backend/bench/models.py` runs the production call against any gateway models on catalog coins of known identity,
+real phone photos (in order and swapped) and traps (blur, glass, medals, banknotes). It reports how often the reading
+selects the right catalog listing, plus cost and latency:
+
+```bash
+cd backend && AI_GATEWAY_API_KEY=... uv run python -m bench.models google/gemini-3.5-flash-lite anthropic/claude-sonnet-5.5
+```
 
 ## Disclaimer
 
