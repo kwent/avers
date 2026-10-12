@@ -1,0 +1,31 @@
+[project]
+name = "avers-api"
+version = "0.1.0"
+description = "Avers API: identify coins from photos and estimate their value"
+requires-python = ">=3.13"
+dependencies = [
+    "anthropic>=1.13.0",
+    "fastapi>=0.143.0",
+    "pillow>=12.3.0",
+    "pydantic>=2.14.1",
+    "python-multipart>=0.0.32",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "ruff>=0.17.0",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["B008"]  # FastAPI File()/Form() defaults
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
