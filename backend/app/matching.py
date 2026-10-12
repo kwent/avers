@@ -20,7 +20,7 @@ SAME_TYPE_MARGIN = 0.05
 
 # "FRANCE-1851A-10 Francs …", "FRANCE-1717 W-Ecu …", "FRANCE-1854-A-10 FRANCS …", "HONGRIE-1911 KB-10 Korona …"
 LISTING_DATE = re.compile(r"-(\d{4})(?:/\d+)?(?:\s*-?\s*([A-Z]{1,2}))?(?=\s*-)")
-GADOURY_REF = re.compile(r"\bG(?:ad(?:oury)?)?\.?\s*(\d+[a-z]?)\b", re.I)
+GADOURY_REF = re.compile(r"\bG(?:ad(?:oury)?)?\.?\s*(?:[A-Z]{2}\s*)?(\d+[a-z]?)\b", re.I)  # "G. 1012", "Gad FR 1012"
 LEADING_NUMBER = re.compile(r"^\s*(\d+(?:[.,]\d+)?)")
 
 

@@ -31,10 +31,6 @@ GRADES = {"B": "g", "TB": "f", "TTB": "vf", "SUP": "xf", "SPL": "au", "FDC": "un
 GRADES_BACK = {v: k for k, v in GRADES.items()} | {"vg": "B"}
 
 
-def enabled() -> bool:
-    return bool(KEY)
-
-
 def _get(store, path: str, params: dict, max_age: timedelta) -> dict | list | None:
     """GET a Numista endpoint through the cache. None when disabled, over quota or failing."""
     if not KEY:

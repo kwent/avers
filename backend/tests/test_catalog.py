@@ -1,6 +1,6 @@
 import pytest
 
-from app import catalog, pricing
+from app import catalog, matching, pricing
 from app.db import connect, upsert_coin
 from app.identify import CoinIdentification
 
@@ -94,4 +94,5 @@ def test_grade_rank(grade, rank):
 
 
 def test_gadoury_numbers():
-    assert catalog._gadoury_numbers(["G. 1012", "KM 770", "Gad.1015", "G 52"]) == ["1012", "1015", "52"]
+    refs = ["G. 1012", "KM 770", "Gad.1015", "G 52", "G. FR 1061", "G. 1012a"]
+    assert matching.gadoury_refs(refs) == {"1012", "1015", "52", "1061", "1012a"}

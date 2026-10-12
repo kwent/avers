@@ -18,7 +18,6 @@ const fr = {
     takePhoto: 'Photographier une pièce',
     takePhotoShort: 'Photographier',
     fromLibrary: 'Choisir dans mes photos',
-    noPhoto: 'Aucune photo choisie',
     tipsTitle: 'Pour une bonne photo',
     tips: [
       'Posez la pièce sur un fond uni et sombre',
@@ -93,7 +92,6 @@ const fr = {
     worthSub: 'entre particuliers',
     value: 'Valeur estimée',
     shopPrice: (range: string) => `${range} chez un marchand`,
-    unavailable: 'Estimation indisponible pour le moment.',
     whyTitle: 'Pourquoi ce prix',
     metalTitle: 'Le métal',
     melt: 'Valeur du métal',
@@ -141,7 +139,6 @@ const fr = {
     unknownPrice: 'Prix inconnu',
     worthAtLeast: 'Elle vaut au moins',
     metalFloor: (metal: string) => `la valeur de son ${metal}, au cours du jour`,
-    priceByGrade: 'Prix selon l’état',
     colGrade: 'État',
     colShop: 'Boutique',
     colResale: 'Revente',

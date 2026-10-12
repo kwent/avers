@@ -6,13 +6,14 @@ kept), then each grade gets a weighted median. What a private seller can expect 
 """
 
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import date
+
+from app.metals import TROY_OZ_G
 
 GRADES = ["B", "TB", "TTB", "SUP", "SPL", "FDC"]
 RESALE_FACTOR = 0.8  # dealers buy ~20% under their selling price
 MELT_PREMIUM = 1.05  # a coin never sells under its metal value plus a small premium
-TROY_OZ_G = 31.1034768
 
 # Approximate LBMA annual averages, USD/oz (2025 is approximate). Used only to strip the metal content out of
 # dated historical prices; today's price always comes from the live spot.
@@ -171,7 +172,3 @@ def estimate(rows: list[GradePrice], grade: str | None, melt_now: float | None) 
         retail_low=round(retail_low, 0),
         retail_high=round(retail_high, 0),
     )
-
-
-def to_dict(obj) -> dict:
-    return asdict(obj)

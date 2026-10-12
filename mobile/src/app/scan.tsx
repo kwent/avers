@@ -1,12 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Press, T } from '../components/ui';
+import { Button, Press, T, thud } from '../components/ui';
 import { useI18n } from '../i18n';
 import { FrameStatus, frameCheck } from '../lib/api';
 import { scan } from '../lib/scanStore';
@@ -107,7 +106,7 @@ export default function ScanScreen() {
     setBusy(true);
     try {
       const photo = await takePicture({ quality: 0.9 });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); // no haptics on the web
+      thud();
       const uri = await cropToGuide(photo.uri, photo.width, photo.height, OUTPUT, 0.88);
       armed.current = false;
       setStatus(null);
@@ -200,7 +199,7 @@ export default function ScanScreen() {
   }
 
   const d = guide;
-  const ringColor = status === 'ok' ? '#5CC97A' : status ? '#F2B84B' : colors.cream;
+  const ringColor = status === 'ok' ? colors.success : status ? colors.warning : colors.cream;
   const guidance = status ? m.scan.guide[status] : m.scan.hint;
 
   return (

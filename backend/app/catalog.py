@@ -1,21 +1,11 @@
 """Find catalog listings comparable to an identified coin."""
 
-import re
 import sqlite3
 
 from app.identify import CoinIdentification
-from app.matching import face_values
+from app.matching import face_values, gadoury_refs, listing_refs
 from app.metals import CATALOG_METALS, convert
 from app.pricing import grade_rank
-
-
-def _gadoury_numbers(refs: list[str]) -> list[str]:
-    out = []
-    for ref in refs:
-        m = re.match(r"\s*G(?:ad(?:oury)?)?\.?\s*(?:[A-Z]{2}\s*)?(\d+)", ref, re.I)
-        if m:
-            out.append(m.group(1))
-    return out
 
 
 def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str, limit: int = 15) -> list[dict]:
@@ -25,7 +15,7 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
     if coin.country_iso:
         where.append("country_iso = ?")
         params.append(coin.country_iso.upper())
-    refs = _gadoury_numbers(coin.catalog_refs)
+    refs = sorted(gadoury_refs(coin.catalog_refs))
     alt = []
     faces = face_values(coin)
     if faces:
@@ -46,7 +36,7 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
     for r in rows:
         text = f"{r['name']} {r['description'] or ''}"
         score = 0.0
-        if any(re.search(rf"G\.\s*{n}\b", text) for n in refs):
+        if listing_refs(text) & set(refs):
             score += 4
         if r["face_value"] in faces:
             score += 2
@@ -63,14 +53,15 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
             scored.append((score, r))
     scored.sort(key=lambda x: (-x[0], -(x[1]["in_stock"] or 0)))
 
+    top = scored[:limit]
+    ids = [r["id"] for _, r in top if r["id"]]
+    images: dict[int, list[str]] = {}
+    marks = ", ".join("?" * len(ids))
+    sql = f"SELECT coin_id, url FROM coin_images WHERE coin_id IN ({marks}) ORDER BY coin_id, position"
+    for i in db.execute(sql, ids):
+        images.setdefault(i["coin_id"], []).append(i["url"])
     out = []
-    for score, r in scored[:limit]:
-        img = (
-            r["id"]
-            and db.execute(
-                "SELECT url, local_path FROM coin_images WHERE coin_id = ? ORDER BY position LIMIT 2", (r["id"],)
-            ).fetchall()
-        )
+    for score, r in top:
         out.append(
             {
                 "id": r["id"],
@@ -85,7 +76,7 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
                 "currency": currency,
                 "in_stock": r["in_stock"],
                 "listed": (r["modified"] or r["created"] or "")[:10],
-                "images": [i["url"] for i in img],
+                "images": images.get(r["id"], [])[:2],
                 "score": round(score, 2),
             }
         )

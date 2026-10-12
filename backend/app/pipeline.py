@@ -13,7 +13,7 @@ import os
 import re
 import sqlite3
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 
 from app import catalog, collection, identify, matching, metals, numista, pricing, years
 
@@ -25,9 +25,6 @@ E2E_MISREAD = {
     int(a): int(b) for a, b in (p.split(":") for p in os.environ.get("E2E_MISREAD_YEARS", "").split(",") if ":" in p)
 }
 
-# catalog metal wording -> normalized metal
-CATALOG_METAL = {"Or": "gold", "Argent": "silver", "Billon": "billon", "Platine": "platinum"}
-
 
 def _year(value: str | None) -> int | None:
     m = re.match(r"(\d{4})", value or "")
@@ -38,8 +35,8 @@ def _apply_catalog_facts(coin: identify.CoinIdentification, row: sqlite3.Row) ->
     """The matched catalog entry is the reference for the facts it records."""
     if row["weight_g"]:
         coin.weight_g = row["weight_g"]
-    if CATALOG_METAL.get(row["metal"] or ""):
-        coin.metal = CATALOG_METAL[row["metal"]]
+    if row["metal"] in metals.METAL_OF_CATALOG:
+        coin.metal = metals.METAL_OF_CATALOG[row["metal"]]
     listed = matching.listing_refs(row["name"])
     if listed:  # the listing's Gadoury numbers replace whatever the reading claimed
         others = [r for r in coin.catalog_refs if not matching.gadoury_refs([r])]
@@ -163,11 +160,11 @@ def price(
         result["numista"] = ref
         check = years.check(src.catalog_db, coin, ref) if coin.year and not year_confirmed else None
         result["year_check"] = check
-        price = ref and ref["prices"].get(coin.grade)
-        if price and not check:
+        numista_price = ref and ref["prices"].get(coin.grade)
+        if numista_price and not check:
             result["valuation"] = {
-                "value_low": price,
-                "value_high": price,
+                "value_low": numista_price,
+                "value_high": numista_price,
                 "retail_low": None,
                 "retail_high": None,
                 "best_match_ids": [],
@@ -178,12 +175,12 @@ def price(
 
     points = []
     for r in same:
-        price = metals.convert(r["price"], r["currency"], currency)
-        if price:
+        listed = metals.convert(r["price"], r["currency"], currency)
+        if listed:
             points.append(
                 pricing.Point(
                     source=r["source"],
-                    price=price,
+                    price=listed,
                     grade=r["grade"],
                     rank=pricing.grade_rank(r["grade"]),
                     year=_year(r["modified"] or r["created"]),
@@ -200,7 +197,7 @@ def price(
         metals.convert(1, "USD", currency),
     )
     table = pricing.price_table(points, melt_now)
-    result["price_table"] = [pricing.to_dict(r) for r in table]
+    result["price_table"] = [asdict(r) for r in table]
     est = pricing.estimate(table, coin.grade, melt_now)
     if est is not None:
         sale_years = [p.year for p in points if p.year]

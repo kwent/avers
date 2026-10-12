@@ -168,19 +168,20 @@ def list_collection(currency: str = "EUR"):
 
     priced = [i for i in items if i["value_low"] is not None]
     unpriced = [i for i in items if i["value_low"] is None]
+    low, high, unpriced_melt = total("value_low", priced), total("value_high", priced), melt(unpriced)
     return {
         "currency": currency,
         "items": items,
         "totals": {
             "count": sum(i["quantity"] for i in items),
             # priced coins at their value, the others at their metal value (the one sure figure)
-            "total_low": round(total("value_low", priced) + melt(unpriced), 2),
-            "total_high": round(total("value_high", priced) + melt(unpriced), 2),
+            "total_low": round(low + unpriced_melt, 2),
+            "total_high": round(high + unpriced_melt, 2),
             "priced_count": sum(i["quantity"] for i in priced),
-            "value_low": total("value_low", priced),
-            "value_high": total("value_high", priced),
+            "value_low": low,
+            "value_high": high,
             "unpriced_count": sum(i["quantity"] for i in unpriced),
-            "unpriced_melt": melt(unpriced),
+            "unpriced_melt": unpriced_melt,
             "melt": melt(items),
         },
     }

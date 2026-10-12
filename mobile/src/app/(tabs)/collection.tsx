@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Band, Button, CoinWell, cn, Notice, Row, Section, Segmented, T } from '../../components/ui';
 import { currencyOf, errorText, useI18n } from '../../i18n';
 import { CollectionResponse, getCollection, Item, photoUrl } from '../../lib/api';
-import { gradeName, money, range } from '../../lib/format';
+import { gradeLabel, money, range } from '../../lib/format';
 import { useSettings } from '../../lib/settings';
 import { colors } from '../../theme';
 
@@ -147,7 +147,7 @@ export default function CollectionScreen() {
               <View className="gap-0.5">
                 {!!item.grade && item.grade !== 'unknown' && (
                   <T variant="small" tone="soft">
-                    {item.grade} ({gradeName(item.grade, m)})
+                    {gradeLabel(item.grade, m)}
                   </T>
                 )}
                 <T variant="bodyStrong" tone="gold">

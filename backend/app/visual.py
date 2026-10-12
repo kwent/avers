@@ -129,13 +129,6 @@ class Index:
         coins = set().union(*per_photo) if per_photo else set()
         return {c: float(np.mean([p.get(c, 0.0) for p in per_photo])) for c in coins}
 
-    def search(self, photos: list[bytes], k: int = 12) -> list[tuple[int, float]]:
-        """Top-k (coin_id, score) over the whole catalog."""
-        if self.matrix is None or not photos:
-            return []
-        scores = self._combine(self._per_photo_best(photos))
-        return sorted(scores.items(), key=lambda x: -x[1])[:k]
-
     def scores(self, photos: list[bytes], coin_ids: list[int]) -> dict[int, float]:
         """Similarity of the user's photos to specific catalog coins (coins without images are left out)."""
         if self.matrix is None or not photos or not coin_ids:

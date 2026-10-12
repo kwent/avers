@@ -10,10 +10,16 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 
 export const cn = (...classes: (string | false | null | undefined)[]) => classes.filter(Boolean).join(' ');
 
-/** A light tap felt in the hand, on native only (browsers have no haptics). */
-export const tick = () => {
-  if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+// Felt in the hand, on native only (browsers have no haptics).
+const haptic = (feel: () => Promise<void>) => {
+  if (Platform.OS !== 'web') feel().catch(() => {});
 };
+/** A light tap: a selection. */
+export const tick = () => haptic(Haptics.selectionAsync);
+/** A firm tap: the shutter. */
+export const thud = () => haptic(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium));
+/** Done: the estimate is in. */
+export const success = () => haptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
 
 // ---------------------------------------------------------------- text
 

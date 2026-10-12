@@ -1,20 +1,15 @@
-import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, ScrollView, View } from 'react-native';
+import { ActivityIndicator, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EstimateView } from '../components/EstimateView';
 import { YearCheck } from '../components/YearCheck';
-import { ActionBar, Button, CoinWell, Notice, T } from '../components/ui';
+import { ActionBar, Button, CoinWell, Notice, success, T } from '../components/ui';
 import { errorText, useI18n } from '../i18n';
 import { addItem, correctYear, Estimate, estimate } from '../lib/api';
 import { resetScan, scan } from '../lib/scanStore';
 import { useSettings } from '../lib/settings';
 import { colors } from '../theme';
-
-const success = () => {
-  if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-};
 
 export default function ResultScreen() {
   const { settings } = useSettings();

@@ -1,7 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
-import { getLocales } from 'expo-localization';
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import type { LanguageSetting } from '../i18n';
@@ -72,9 +71,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(KEY)
       .then((raw) => {
         const stored = raw ? { ...DEFAULTS, ...JSON.parse(raw) } : DEFAULTS;
-        const code = LINK_CODE;
-        setSettings(code ? { ...stored, token: code } : stored);
-        if (code) AsyncStorage.setItem(KEY, JSON.stringify({ ...stored, token: code })).catch(() => {});
+        setSettings(LINK_CODE ? { ...stored, token: LINK_CODE } : stored);
+        if (LINK_CODE) AsyncStorage.setItem(KEY, JSON.stringify({ ...stored, token: LINK_CODE })).catch(() => {});
       })
       .catch(() => {})
       .finally(() => setLoaded(true));

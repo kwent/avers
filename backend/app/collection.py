@@ -35,6 +35,12 @@ ITEM_COLUMNS = """
   estimate TEXT                   -- full /estimate payload (JSON) at save time
 """
 
+COMMON_TABLES = """
+CREATE TABLE IF NOT EXISTS daily_usage (day TEXT PRIMARY KEY, estimates INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS api_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, n INTEGER NOT NULL);
+"""
+
 SQLITE_SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS items (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,10 +53,7 @@ CREATE TABLE IF NOT EXISTS photos (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   data BLOB NOT NULL
 );
-CREATE TABLE IF NOT EXISTS daily_usage (day TEXT PRIMARY KEY, estimates INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS api_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, n INTEGER NOT NULL);
-"""
+{COMMON_TABLES}"""
 
 POSTGRES_SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS items (
@@ -64,10 +67,7 @@ CREATE TABLE IF NOT EXISTS photos (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   data BYTEA NOT NULL
 );
-CREATE TABLE IF NOT EXISTS daily_usage (day TEXT PRIMARY KEY, estimates INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS api_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, n INTEGER NOT NULL);
-"""
+{COMMON_TABLES}"""
 
 EDITABLE = {
     "title",
@@ -78,9 +78,6 @@ EDITABLE = {
     "value_low",
     "value_high",
     "notes",
-    "metal",
-    "fineness",
-    "weight_g",
 }
 
 

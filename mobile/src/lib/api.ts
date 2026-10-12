@@ -92,7 +92,6 @@ export type Estimate = {
   match: CatalogMatch | null;
   price_table: GradePrice[];
   valuation: Valuation | null;
-  valuation_error?: string;
   already_owned?: number;
   /** what Numista knows, looked up when the catalog has no listing of this coin */
   numista?: {

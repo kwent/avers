@@ -25,6 +25,8 @@ CATALOG_METALS = {
     "steel": ["Acier Inoxydable"],
     "zinc": ["Zinc"],
 }
+# catalog wording -> normalized metal, for the precious metals a matched listing is trusted on
+METAL_OF_CATALOG = {"Or": "gold", "Argent": "silver", "Billon": "billon", "Platine": "platinum"}
 
 _lock = threading.Lock()
 _cache: dict[str, tuple[float, object]] = {}

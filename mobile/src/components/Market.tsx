@@ -76,11 +76,8 @@ export function PriceTable({
 /** The catalog entry the coin was matched to, then the comparable listings. */
 export function CatalogSection({ est }: { est: Estimate }) {
   const { m } = useI18n();
-  const best = new Set(est.valuation?.best_match_ids ?? []);
-  const comparables = [...est.comparables]
-    .filter((c) => c.id !== est.match?.id)
-    .sort((a, b) => Number(best.has(b.id)) - Number(best.has(a.id)))
-    .slice(0, 6);
+  // the API lists listings of this exact coin first
+  const comparables = est.comparables.filter((c) => c.id !== est.match?.id).slice(0, 6);
   const match = est.match;
 
   return (
