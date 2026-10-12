@@ -8,6 +8,7 @@ import { Comparable, Estimate } from '../lib/api';
 import { confidence, gradeName, metalName, money, number, range, sourceLabel } from '../lib/format';
 import { colors, font } from '../lib/theme';
 import { CopyButton, CopyProvider, CopyRow, useCopy } from './Copy';
+import { MatchCard, PriceTable, QuoteList } from './Market';
 import { Card, Label, Pill } from './ui';
 
 type Field = { id: string; label: string; value: string };
@@ -152,9 +153,15 @@ function EstimateContent({ est, photos }: { est: Estimate; photos: (string | und
             </Text>
           </>
         ) : (
-          <Text style={styles.body}>{m.estimate.unavailable}</Text>
+          <Text style={styles.body}>{m.estimate.noPrice}</Text>
         )}
       </Card>
+
+      {est.match ? (
+        <MatchCard match={est.match} />
+      ) : (
+        <Text style={styles.explain}>{m.estimate.noMatch}</Text>
+      )}
 
       {est.melt && (
         <Card>
@@ -175,6 +182,8 @@ function EstimateContent({ est, photos }: { est: Estimate; photos: (string | und
         </Card>
       )}
 
+      <PriceTable rows={est.price_table ?? []} grade={coin.grade} currency={cur} />
+
       <Card>
         <Label>{m.estimate.details}</Label>
         {detailFields(est, m, locale).map((f) => (
@@ -191,6 +200,8 @@ function EstimateContent({ est, photos }: { est: Estimate; photos: (string | und
           </Text>
         )}
       </Card>
+
+      <QuoteList quotes={est.market_quotes ?? []} currency={cur} />
 
       {comparables.length > 0 && (
         <View style={{ gap: 10 }}>

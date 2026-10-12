@@ -1,6 +1,6 @@
 import pytest
 
-from app import catalog
+from app import catalog, pricing
 from app.db import connect, upsert_coin
 from app.identify import CoinIdentification
 
@@ -90,7 +90,7 @@ def test_comparables_empty_for_non_coin(db):
     [("TTB", 2), ("TTB-SUP", 2.5), ("TTB+", 2.3), ("presque SUP", 2.7), ("FDC", 5), ("Flan bruni", None), (None, None)],
 )
 def test_grade_rank(grade, rank):
-    assert catalog._grade_rank(grade) == (pytest.approx(rank) if rank is not None else None)
+    assert pricing.grade_rank(grade) == (pytest.approx(rank) if rank is not None else None)
 
 
 def test_gadoury_numbers():

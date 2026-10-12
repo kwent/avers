@@ -21,11 +21,14 @@ data/     local only (git-ignored): catalog database, images, collection, upload
 ```
 
 ```
-phone ──photo──▶ POST /estimate
-                   ├─ Claude (claude-opus-5-5): identify coin → structured JSON
-                   ├─ SQLite catalog: find comparable listings
-                   ├─ gold-api.com + Frankfurter: spot price & FX → melt value
-                   └─ Claude: value range from comparables + melt
+phone ──photos──▶ POST /estimate
+                   ├─ Claude: read the photos (or refuse: not a coin / unidentifiable)
+                   ├─ visual index (DINOv2 over catalog photos): look-alike catalog coins   ┐ in parallel
+                   ├─ Claude: which catalog candidate is this exact coin? → catalog facts win │
+                   ├─ Claude + web search: recent auction results and dealer prices          ┘
+                   ├─ pricing (plain code): price per grade from catalog + web, old prices
+                   │    brought to today's metal price, never below melt
+                   └─ Claude: explain the numbers
        ◀─result─┘
 phone ──save──▶ POST /collection  (separate SQLite file, never touched by catalog imports)
 ```
@@ -41,9 +44,12 @@ Requires [uv](https://docs.astral.sh/uv/) and Anthropic credentials (`ant auth l
 
 ```bash
 cd backend
-uv sync
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+uv sync --extra vision                                   # vision = local image search (torch + DINOv2)
+uv run --extra vision python -m app.visual build         # once, after importing catalog images
+uv run --extra vision uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
+
+Without the `vision` extra the API still works; it just skips the visual look-alike search.
 
 The catalog lives in `data/coins.sqlite` (schema in `backend/app/db.py`). It is populated by import tooling that is not part of this repository. Without it the app still identifies coins and computes melt values. It just has no comparables to show.
 

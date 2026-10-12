@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 from pydantic import BaseModel
 
-from app import catalog, collection, framecheck, identify, metals
+from app import collection, framecheck, identify, metals, pipeline, visual
 from app.db import IMAGES_DIR, connect
 
 MAX_SIDE = 1568  # Claude downsizes anything larger anyway
@@ -29,6 +29,8 @@ def check_token(x_app_token: str | None = Header(default=None)):
 
 app = FastAPI(title="Avers API", dependencies=[Depends(check_token)])
 catalog_db = connect()
+# Visual search over catalog photos (optional `vision` extra; built with `python -m app.visual build`)
+visual_index = visual.Index(catalog_db) if visual.available() else None
 collection_db = collection.connect()
 app.mount("/uploads", StaticFiles(directory=collection.UPLOADS_DIR), name="uploads")
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -81,43 +83,11 @@ def estimate(
     language = language if language in identify.LANGUAGES else identify.DEFAULT_LANGUAGE
     photos = [_normalize_photo(front)] + ([_normalize_photo(back)] if back else [])
     try:
-        coin = identify.identify([(data, "image/jpeg") for data, _ in photos], language)
+        return pipeline.run(photos, currency, language, catalog_db, collection_db, visual_index)
     except anthropic.APIError as e:
         raise HTTPException(502, f"identification failed: {e}") from e
     except RuntimeError as e:
         raise HTTPException(422, str(e)) from e
-
-    names = [name for _, name in photos]
-    photo_warning = None
-    if len(names) == 2 and len(coin.photo_sides) == 2:
-        if coin.photo_sides == ["reverse", "obverse"]:
-            names.reverse()  # the user swapped the sides: show the obverse first
-        elif coin.photo_sides[0] == coin.photo_sides[1] != "unclear":
-            photo_warning = "same_side"
-
-    result = {
-        "currency": currency,
-        "language": language,
-        "photos": {"front": names[0], "back": names[1] if len(names) > 1 else None},
-        "photo_warning": photo_warning,
-        "identification": coin.model_dump(),
-        "melt": None,
-        "comparables": [],
-        "valuation": None,
-    }
-    if coin.status != "identified":
-        return result  # never value something we could not identify
-
-    result["already_owned"] = collection.owned_count(collection_db, coin.country_iso, coin.year, coin.denomination)
-    result["melt"] = metals.melt_value(coin.metal, coin.weight_g, coin.fineness, currency)
-    result["comparables"] = catalog.comparables(catalog_db, coin, currency)
-    try:
-        result["valuation"] = identify.valuate(
-            coin, result["melt"], result["comparables"], currency, language
-        ).model_dump()
-    except (anthropic.APIError, RuntimeError) as e:
-        result["valuation_error"] = str(e)
-    return result
 
 
 @app.get("/catalog/search")

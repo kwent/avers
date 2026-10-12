@@ -67,7 +67,7 @@ api_data="$(mktemp -d)"
 (
   cd ../backend
   COLLECTION_DB="$api_data/collection.sqlite" UPLOADS_DIR="$api_data/uploads" \
-    exec uv run uvicorn app.main:app --host 127.0.0.1 --port "$port"
+    exec uv run --extra vision uvicorn app.main:app --host 127.0.0.1 --port "$port"
 ) >"$api_data/api.log" 2>&1 &
 pids+=($!)
 until curl -sf "http://localhost:$port/health" >/dev/null; do sleep 1; done

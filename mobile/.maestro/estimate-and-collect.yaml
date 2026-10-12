@@ -34,8 +34,17 @@ tags: [e2e]
 - tapOn:
     id: "copy-all"
 - assertVisible: "Copié"
+- scrollUntilVisible: # tall card, often already half on screen
+    element:
+      id: "catalog-match"
+    visibilityPercentage: 50
+    centerElement: true
 - scrollUntilVisible:
     element: "VALEUR DU MÉTAL \\(MINIMUM\\)"
+- scrollUntilVisible:
+    element: "PRIX SELON L’ÉTAT"
+- assertVisible:
+    id: "price-SUP"
 - scrollUntilVisible:
     element:
       id: "copy-year"
@@ -64,8 +73,10 @@ tags: [e2e]
 
 # Clean up
 - tapOn: "2 × .*10 Francs.*"
-- scrollUntilVisible:
+- scrollUntilVisible: # the item page is long (estimate, prices, sources, comparables)
     element: "Retirer de ma collection"
+    timeout: 60000
+    speed: 80
 - tapOn: "Retirer de ma collection"
 - tapOn: "Retirer"
 - assertVisible: "Votre collection est vide."

@@ -67,13 +67,36 @@ class CoinIdentification(BaseModel):
     notes: str = Field(description="Short notes useful to a collector (variety, rarity)")
 
 
-class Valuation(BaseModel):
-    value_low: float = Field(description="Low estimate of what a collector could realistically get")
-    value_high: float
-    retail_low: float | None = Field(description="Typical dealer asking price, low")
-    retail_high: float | None
-    best_match_ids: list[int] = Field(description="Catalog ids of the comparables that are the same coin type")
-    explanation: str = Field(description="2-4 short sentences explaining the estimate")
+class CatalogMatch(BaseModel):
+    match_id: int | None = Field(
+        description="Catalog id of the candidate that is the same coin (same country, type, denomination, year and "
+        "mint; grade may differ), or null if none is"
+    )
+    same_coin_ids: list[int] = Field(description="Every candidate id that is that same coin, in any grade")
+    confidence: float = Field(description="0-1 probability that match_id is right")
+    reason: str = Field(description="One short sentence: what confirms or rules out the match")
+
+
+GradeCode = Literal["B", "TB", "TTB", "SUP", "SPL", "FDC"]
+
+
+class MarketQuote(BaseModel):
+    source: str = Field(description="Site or auction house, e.g. 'CGB', 'Heritage', 'eBay'")
+    url: str
+    grade: GradeCode | None = Field(description="Grade converted to the French scale, null if not stated")
+    grade_text: str | None = Field(description="Grade as written by the source, e.g. 'NGC MS64', 'TTB+'")
+    price: float
+    currency: str = Field(description="ISO 4217 code, e.g. EUR, USD")
+    year: int | None = Field(description="Year of the sale or listing, null if unknown")
+    kind: Literal["sold", "listing"] = Field(description="sold = auction result / completed sale; listing = asking")
+
+
+class MarketQuotes(BaseModel):
+    quotes: list[MarketQuote]
+
+
+class Explanation(BaseModel):
+    explanation: str = Field(description="2-4 short sentences")
 
 
 # UI languages supported by the app -> language name used in prompts
@@ -99,23 +122,33 @@ The photos are meant to be the obverse then the reverse, but the user may have s
 side twice: report what each photo really shows in photo_sides.
 Write every free-text field (title, country_name, denomination, type_name, notes, status_reason) in {language}."""
 
-VALUATION_PROMPT = """You are an expert numismatist. Estimate the value of this coin for a private collector.
+MATCH_PROMPT = """You are an expert numismatist. The user's photos of a coin come first, then numbered candidate
+coins from a dealer catalog (each candidate image shows its obverse and reverse side by side).
 
-Coin identified from photos:
-{coin}
+Find the candidate that is the same coin: same country, type, denomination, year and mint mark. The grade (state of
+wear) may differ. Compare the actual designs, legends, dates and mint marks; do not match on a similar look alone.
+If none is the same coin, match_id is null — that is a valid, useful answer. Never pick the closest one by default.
+Your own first reading of the coin (may be wrong): {reading}
+Write the reason in {language}."""
 
-Melt value of the metal content right now: {melt}
+QUOTES_PROMPT = """Find recent market prices for this exact coin: {coin}.
+Search auction results and dealer listings (e.g. CGB, iNumis, NumisCorner, Heritage, eBay sold listings,
+Numista price pages). Report only prices you actually found on a page, with the page URL, the grade as written
+and converted to the French scale (B, TB, TTB, SUP, SPL, FDC; US: G/VG≈B, F≈TB, VF≈TTB, XF/EF≈SUP, AU≈SPL,
+MS/UNC≈FDC), the year of the sale or listing, and whether it is a completed sale or an asking price.
+Skip lots of several coins, different years or mints, and certified-grade premiums you cannot attribute.
+Return between 0 and 8 quotes; an empty list is better than a doubtful one."""
 
-Comparable listings from dealer catalogs (asking prices, {currency};
-in_stock=0 means an archived past listing, often dated):
-{comparables}
+EXPLAIN_PROMPT = """Explain this coin estimate to a collector in {language}, in 2-4 short sentences: what drives
+the value (metal content vs collector premium), how the grade changes the price, and where the numbers come from
+(catalog listings, recent market quotes). Do not invent figures: only use the ones below.
 
-Rules:
-- Dealer asking prices are retail; what a private collector can sell for is usually lower.
-- Weigh comparables of the same type, year and grade most; adjust for grade differences.
-- Never estimate below melt value.
-- Values in {currency}.
-- Write the explanation in {language}."""
+Coin: {coin}
+Estimated grade: {grade}
+Melt value now: {melt}
+Price by grade (retail / private resale, {currency}): {table}
+Estimate for this grade: {estimate}
+Data used (price points; 'undated' means the date is unknown — never call those recent): {sources}"""
 
 
 def _image_block(data: bytes, media_type: str) -> dict:
@@ -125,14 +158,21 @@ def _image_block(data: bytes, media_type: str) -> dict:
     }
 
 
-def _parse(**kwargs):
-    response = client.beta.messages.parse(
-        model=MODEL,
-        max_tokens=16000,
-        betas=[FALLBACK_BETA],
-        fallbacks="default",
-        **kwargs,
-    )
+def _parse(messages: list, max_continuations: int = 3, **kwargs):
+    response = None
+    for _ in range(max_continuations + 1):
+        response = client.beta.messages.parse(
+            model=MODEL,
+            max_tokens=16000,
+            betas=[FALLBACK_BETA],
+            fallbacks="default",
+            messages=messages,
+            **kwargs,
+        )
+        if response.stop_reason != "pause_turn":
+            break
+        # server-side tool loop (web search) paused: resend the turn as-is and the server resumes it
+        messages = [*messages, {"role": "assistant", "content": response.content}]
     if response.stop_reason == "refusal":
         raise RuntimeError("Claude declined to analyse this image")
     if response.parsed_output is None:
@@ -168,22 +208,53 @@ def enforce_confidence(coin: CoinIdentification) -> CoinIdentification:
     return coin
 
 
-def valuate(
+def match(
+    photos: list[tuple[bytes, str]],
+    candidates: list[dict],
     coin: CoinIdentification,
-    melt: dict | None,
-    comparables: list[dict],
-    currency: str,
     language: str = DEFAULT_LANGUAGE,
-) -> Valuation:
-    prompt = VALUATION_PROMPT.format(
-        coin=coin.model_dump_json(indent=1),
-        melt=json.dumps(melt) if melt else "n/a (non-precious metal or unknown weight)",
-        comparables=json.dumps(comparables, ensure_ascii=False, indent=1) if comparables else "none found",
-        currency=currency,
-        language=language_name(language),
+) -> CatalogMatch:
+    """candidates: [{"id", "label", "image": jpeg bytes}] — picks the catalog entry that is this coin, if any."""
+    content = []
+    for i, (data, media_type) in enumerate(photos, 1):
+        content += [{"type": "text", "text": f"User photo {i}"}, _image_block(data, media_type)]
+    for c in candidates:
+        content.append({"type": "text", "text": f"Candidate #{c['id']}: {c['label']}"})
+        if c.get("image"):
+            content.append(_image_block(c["image"], "image/jpeg"))
+    content.append({"type": "text", "text": "Which candidate, if any, is this exact coin?"})
+    reading = coin.model_dump_json(include={"title", "country_iso", "year", "mint_mark", "denomination", "type_name"})
+    result = _parse(
+        system=MATCH_PROMPT.format(reading=reading, language=language_name(language)),
+        output_config={"effort": "medium"},
+        messages=[{"role": "user", "content": content}],
+        output_format=CatalogMatch,
+    )
+    ids = {c["id"] for c in candidates}
+    if result.match_id not in ids:
+        result.match_id = None
+    result.same_coin_ids = [i for i in result.same_coin_ids if i in ids]
+    if result.match_id is not None and result.match_id not in result.same_coin_ids:
+        result.same_coin_ids.insert(0, result.match_id)
+    return result
+
+
+def market_quotes(description: str) -> list[MarketQuote]:
+    """Live web search for recent auction results / dealer prices of this exact coin."""
+    return _parse(
+        output_config={"effort": "low"},
+        tools=[{"type": "web_search_20260209", "name": "web_search", "max_uses": 4}],
+        messages=[{"role": "user", "content": QUOTES_PROMPT.format(coin=description)}],
+        output_format=MarketQuotes,
+    ).quotes
+
+
+def explain(context: dict, language: str = DEFAULT_LANGUAGE) -> str:
+    prompt = EXPLAIN_PROMPT.format(
+        language=language_name(language), **{k: json.dumps(v, ensure_ascii=False) for k, v in context.items()}
     )
     return _parse(
         output_config={"effort": "low"},
         messages=[{"role": "user", "content": prompt}],
-        output_format=Valuation,
-    )
+        output_format=Explanation,
+    ).explanation

@@ -5,8 +5,7 @@ import sqlite3
 
 from app.identify import CoinIdentification
 from app.metals import CATALOG_METALS, convert
-
-GRADE_ORDER = ["B", "TB", "TTB", "SUP", "SPL", "FDC"]
+from app.pricing import grade_rank
 
 
 def _gadoury_numbers(refs: list[str]) -> list[str]:
@@ -16,23 +15,6 @@ def _gadoury_numbers(refs: list[str]) -> list[str]:
         if m:
             out.append(m.group(1))
     return out
-
-
-def _grade_rank(grade: str | None) -> float | None:
-    """'TTB-SUP' -> 2.5, 'presque SUP' -> 2.7, 'Flan bruni' -> None."""
-    if not grade:
-        return None
-    g = grade.upper().replace("PRESQUE", "PR.").replace(" ", "")
-    tokens = [t for t in re.split(r"[-/]", g.replace("PR.", "")) if t]
-    ranks = []
-    for t in tokens:
-        base = t.rstrip("+")
-        if base in GRADE_ORDER:
-            ranks.append(GRADE_ORDER.index(base) + (0.3 if t.endswith("+") else 0))
-    if not ranks:
-        return None
-    rank = sum(ranks) / len(ranks)
-    return rank - 0.3 if g.startswith("PR.") else rank
 
 
 def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str, limit: int = 15) -> list[dict]:
@@ -57,7 +39,7 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
     rows = db.execute(f"SELECT * FROM coins WHERE {' AND '.join(where)} AND price > 0 LIMIT 2000", params).fetchall()
 
     metals = CATALOG_METALS.get(coin.metal, [])
-    target_grade = _grade_rank(coin.grade) if coin.grade != "unknown" else None
+    target_grade = grade_rank(coin.grade) if coin.grade != "unknown" else None
     scored = []
     for r in rows:
         text = f"{r['name']} {r['description'] or ''}"
@@ -72,7 +54,7 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
             score -= 3
         if coin.year and r["year"]:
             score += max(0, 3 - abs(r["year"] - coin.year) / 2)
-        rank = _grade_rank(r["grade"])
+        rank = grade_rank(r["grade"])
         if target_grade is not None and rank is not None:
             score += max(0, 1 - abs(rank - target_grade) / 2)
         if score >= 3:

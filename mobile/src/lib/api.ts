@@ -62,6 +62,28 @@ export type Valuation = {
   explanation: string;
 };
 
+export type CatalogMatch = {
+  id: number;
+  source: string;
+  name: string;
+  url: string;
+  images: string[];
+  confidence: number;
+  reason: string;
+};
+
+export type GradePrice = { grade: string; retail: number | null; resale: number | null; points: number };
+
+export type MarketQuote = {
+  source: string;
+  price: number;
+  adjusted: number | null;
+  grade: string | null;
+  year: number | null;
+  kind: 'sold' | 'listing';
+  url: string | null;
+};
+
 export type Estimate = {
   currency: string;
   photos: { front: string; back: string | null };
@@ -69,6 +91,9 @@ export type Estimate = {
   identification: Identification;
   melt: Melt | null;
   comparables: Comparable[];
+  match: CatalogMatch | null;
+  price_table: GradePrice[];
+  market_quotes: MarketQuote[];
   valuation: Valuation | null;
   valuation_error?: string;
   already_owned?: number;
