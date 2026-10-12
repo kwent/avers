@@ -18,7 +18,8 @@ Avers is a small mobile app for coin collectors. You photograph a coin from both
   finds it in the catalog, which is the source of truth for its facts and prices,
 - **estimates its condition** on the French grading scale (B · TB · TTB · SUP · SPL · FDC),
 - **values it** from the catalog listings of that exact coin, per grade, with shop and private-resale prices
-  (Numista's per-grade prices, priced the same way, when the catalog has none; never a made-up one),
+  (Numista's per-grade prices, priced the same way, when the catalog has none; never a made-up one).
+  How a price is worked out, with an example: [docs/pricing.md](docs/pricing.md),
 - **asks** which year the coin shows when the date read may be wrong (a worn 5 taken for a 6),
 - computes the **melt value** of its precious metal content from live spot prices,
 - keeps a **personal collection** with quantities, notes and a running total value.
