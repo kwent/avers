@@ -4,6 +4,8 @@
 
 **Take a photo of a coin, find out what it is and what it's worth.**
 
+*Avers* is French for the obverse of a coin: the "heads" side, with the portrait or main design. The other side is the *revers*. Like a collector, the app starts with the avers.
+
 <p align="center">
   <img src="docs/screenshots/home.png" width="250" alt="Home: photograph a coin">
   <img src="docs/screenshots/result.png" width="250" alt="Estimate of a 10 Francs Cérès 1851 A">
