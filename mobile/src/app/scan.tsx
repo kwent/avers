@@ -26,6 +26,9 @@ const PREFERRED_LENSES = [/triple/i, /dual wide/i, /dual/i];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** The session is (re)starting, e.g. right after a lens switch: retry instead of failing. */
+const isNotReady = (e: unknown) => String(e).includes('CameraNotReady');
+
 export default function ScanScreen() {
   const { m } = useI18n();
   const { settings } = useSettings();
@@ -53,12 +56,25 @@ export default function ScanScreen() {
     return (await image.saveAsync({ format: SaveFormat.JPEG, compress })).uri;
   };
 
+  const takePicture = async (options: { quality: number; shutterSound?: boolean }) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const photo = await camera.current?.takePictureAsync(options);
+        if (!photo) throw new Error('CameraNotReady: no camera');
+        return photo;
+      } catch (e) {
+        if (!isNotReady(e) || attempt >= 5) throw e;
+        await sleep(300);
+      }
+    }
+  };
+
   const capture = async () => {
-    if (!camera.current || capturing.current) return;
+    if (!camera.current || capturing.current || !ready) return;
     capturing.current = true;
     setBusy(true);
     try {
-      const photo = await camera.current.takePictureAsync({ quality: 0.9 });
+      const photo = await takePicture({ quality: 0.9 });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const uri = await cropToGuide(photo.uri, photo.width, photo.height, OUTPUT, 0.88);
       armed.current = false;
@@ -70,21 +86,29 @@ export default function ScanScreen() {
         scan.back = uri;
         router.replace('/result');
       }
+    } catch (e) {
+      console.warn('capture failed', e);
     } finally {
       capturing.current = false;
       setBusy(false);
     }
   };
 
+  // Choose the lens first: switching it restarts the session, and photos taken meanwhile fail.
   const onReady = async () => {
-    setReady(true);
-    try {
-      const lenses = (await camera.current?.getAvailableLensesAsync()) ?? [];
-      const best = PREFERRED_LENSES.map((re) => lenses.find((l) => re.test(l))).find(Boolean);
-      if (best) setLens(best);
-    } catch {
-      // Android / older devices: keep the default lens
+    if (lens === undefined) {
+      try {
+        const lenses = (await camera.current?.getAvailableLensesAsync()) ?? [];
+        const best = PREFERRED_LENSES.map((re) => lenses.find((l) => re.test(l))).find(Boolean);
+        if (best) {
+          setLens(best);
+          await sleep(800); // let the session settle on the new lens
+        }
+      } catch {
+        // Android / older devices: keep the default lens
+      }
     }
+    setReady(true);
   };
 
   // Live guidance: grab a small silent frame, ask the API whether it is good, shoot when it is.
@@ -96,10 +120,15 @@ export default function ScanScreen() {
       while (!cancelled) {
         await sleep(CHECK_INTERVAL);
         if (cancelled || capturing.current || !camera.current) continue;
+        let uri: string;
         try {
-          const photo = await camera.current.takePictureAsync({ quality: 0.5, shutterSound: false });
+          const photo = await takePicture({ quality: 0.5, shutterSound: false });
           if (cancelled || capturing.current) continue;
-          const uri = await cropToGuide(photo.uri, photo.width, photo.height, CHECK_SIZE, 0.7);
+          uri = await cropToGuide(photo.uri, photo.width, photo.height, CHECK_SIZE, 0.7);
+        } catch {
+          continue; // camera busy or restarting: try again next tick
+        }
+        try {
           const res = await frameCheck(settings, uri);
           if (cancelled || capturing.current) continue;
           setStatus(res.status);
@@ -190,7 +219,7 @@ export default function ScanScreen() {
           </View>
           <View style={styles.bottomBar}>
             <View style={styles.side} />
-            <Pressable accessibilityLabel={m.scan.shoot} onPress={capture} style={styles.shutter} disabled={busy}>
+            <Pressable accessibilityLabel={m.scan.shoot} onPress={capture} style={[styles.shutter, !ready && { opacity: 0.5 }]} disabled={busy || !ready}>
               {busy ? <ActivityIndicator color={colors.brass} size="large" /> : <View style={styles.shutterInner} />}
             </Pressable>
             <View style={styles.side}>
