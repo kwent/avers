@@ -18,6 +18,7 @@ import io
 import json
 import os
 import random
+import re
 import sqlite3
 import ssl
 import sys
@@ -37,9 +38,13 @@ GATEWAY = "https://ai-gateway.vercel.sh/v1"
 FIXTURES = Path(__file__).resolve().parents[2] / "mobile/.maestro/fixtures"
 OUT_DIR = DB_PATH.parent / "bench"
 PHONE_COIN_ID = 13675  # catalog listing of the coin in the phone fixtures (10 Francs Cérès 1851 A)
-PER_COUNTRY = {"FR": 10, "IT": 4, "US": 2, "GB": 2, "VA": 1, "MC": 1, "ES": 1, "DE": 1, "RU": 1, "AT": 1}
+PER_COUNTRY = {"FR": 16, "IT": 6, "US": 3, "GB": 3, "VA": 2, "MC": 2, "ES": 2, "DE": 2, "RU": 2, "AT": 2}
+# catalog items that are not coins: excluded from the coin sample, a few kept as extra "not a coin" traps
+NOT_COINS = r"(JETON|M[EÉ]DAILLE|COFFRET|BILLET|BERNHARD)"
+NOT_COIN_TRAPS = 3
 SEED = 7
 WORKERS = 6
+RETRIES = 6  # rate limits and transient errors: wait 2, 4, 8... seconds (or Retry-After) between attempts
 
 DEFAULT_MODELS = [
     "anthropic/claude-opus-5.5",
@@ -58,9 +63,21 @@ SSL = ssl.create_default_context(cafile="/etc/ssl/cert.pem" if Path("/etc/ssl/ce
 def _get(url: str, body: dict | None = None, timeout: int = 180) -> dict:
     headers = {"Authorization": f"Bearer {os.environ['AI_GATEWAY_API_KEY']}", "Content-Type": "application/json"}
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, headers=headers)
-    with urllib.request.urlopen(req, timeout=timeout, context=SSL) as resp:
-        return json.load(resp)
+    for attempt in range(RETRIES):
+        req = urllib.request.Request(url, data=data, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout, context=SSL) as resp:
+                return json.load(resp)
+        except urllib.error.HTTPError as e:
+            if e.code != 429 and e.code < 500 or attempt == RETRIES - 1:
+                raise
+            wait = float(e.headers.get("Retry-After") or 2 ** (attempt + 1))
+        except (urllib.error.URLError, TimeoutError):
+            if attempt == RETRIES - 1:
+                raise
+            wait = 2 ** (attempt + 1)
+        time.sleep(min(wait, 60) * random.uniform(1, 1.5))
+    raise AssertionError("unreachable")
 
 
 def prices() -> dict[str, tuple[float, float]]:
@@ -81,24 +98,42 @@ def _jpeg(img: Image.Image, max_side: int = 1600) -> bytes:
     return buf.getvalue()
 
 
+def _catalog_photos(db: sqlite3.Connection, coin_id: int) -> list[bytes]:
+    paths = db.execute(
+        "SELECT local_path FROM coin_images WHERE coin_id = ? AND local_path IS NOT NULL ORDER BY position LIMIT 2",
+        (coin_id,),
+    ).fetchall()
+    return [_jpeg(Image.open(IMAGES_DIR / p[0])) for p in paths]
+
+
 def cases(db: sqlite3.Connection) -> list[dict]:
     out = []
     rnd = random.Random(SEED)
+    with_photos = (
+        "price > 0 AND (SELECT count(*) FROM coin_images i WHERE i.coin_id = c.id AND i.local_path IS NOT NULL) >= 2"
+    )
     for iso, n in PER_COUNTRY.items():
         rows = db.execute(
-            "SELECT c.* FROM coins c WHERE country_iso = ? AND year IS NOT NULL AND face_value IS NOT NULL "
-            "AND price > 0 AND (SELECT count(*) FROM coin_images i WHERE i.coin_id = c.id "
-            "AND i.local_path IS NOT NULL) >= 2",
+            f"SELECT c.* FROM coins c WHERE country_iso = ? AND year IS NOT NULL AND face_value > 0 AND {with_photos}",
             (iso,),
         ).fetchall()
+        rows = [r for r in rows if not re.search(NOT_COINS, r["name"], re.I)]
         for r in rnd.sample(rows, min(n, len(rows))):
-            paths = db.execute(
-                "SELECT local_path FROM coin_images WHERE coin_id = ? AND local_path IS NOT NULL "
-                "ORDER BY position LIMIT 2",
-                (r["id"],),
-            ).fetchall()
-            imgs = [_jpeg(Image.open(IMAGES_DIR / p[0])) for p in paths]
-            out.append({"name": f"catalog-{r['id']}", "imgs": imgs, "truth": dict(r), "expect": "identified"})
+            out.append(
+                {
+                    "name": f"catalog-{r['id']}",
+                    "imgs": _catalog_photos(db, r["id"]),
+                    "truth": dict(r),
+                    "expect": "identified",
+                }
+            )
+    others = [
+        r for r in db.execute(f"SELECT c.* FROM coins c WHERE {with_photos}") if re.search(NOT_COINS, r["name"], re.I)
+    ]
+    for r in rnd.sample(others, min(NOT_COIN_TRAPS, len(others))):
+        out.append(
+            {"name": f"trap-{r['id']}", "imgs": _catalog_photos(db, r["id"]), "truth": None, "expect": "not_a_coin"}
+        )
 
     front, back = (FIXTURES / "coin-front.jpg").read_bytes(), (FIXTURES / "coin-back.jpg").read_bytes()
     truth = dict(db.execute("SELECT * FROM coins WHERE id = ?", (PHONE_COIN_ID,)).fetchone())
@@ -174,7 +209,7 @@ def score(case: dict, coin: identify.CoinIdentification, db: sqlite3.Connection)
         return out
     out["country"] = (coin.country_iso or "").upper() == truth["country_iso"]
     out["year"] = coin.year == truth["year"]
-    out["face"] = coin.face_value is not None and abs(coin.face_value - truth["face_value"]) < 1e-6
+    out["face"] = truth["face_value"] in matching.face_values(coin)
     mint = matching.listing_mint(truth["name"])
     out["mint"] = None if not mint else (coin.mint_mark or "").strip().upper() == mint
     out["candidate"] = False

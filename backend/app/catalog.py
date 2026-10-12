@@ -4,6 +4,7 @@ import re
 import sqlite3
 
 from app.identify import CoinIdentification
+from app.matching import face_values
 from app.metals import CATALOG_METALS, convert
 from app.pricing import grade_rank
 
@@ -26,9 +27,10 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
         params.append(coin.country_iso.upper())
     refs = _gadoury_numbers(coin.catalog_refs)
     alt = []
-    if coin.face_value is not None:
-        alt.append("face_value = ?")
-        params.append(coin.face_value)
+    faces = face_values(coin)
+    if faces:
+        alt.append(f"face_value IN ({', '.join('?' * len(faces))})")
+        params += faces
     for n in refs:
         alt.append("(name LIKE ? OR description LIKE ?)")
         params += [f"%G. {n} %", f"%G. {n}%"]
@@ -46,7 +48,7 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
         score = 0.0
         if any(re.search(rf"G\.\s*{n}\b", text) for n in refs):
             score += 4
-        if coin.face_value is not None and r["face_value"] == coin.face_value:
+        if r["face_value"] in faces:
             score += 2
         if metals and r["metal"] in metals:
             score += 1

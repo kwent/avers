@@ -53,3 +53,17 @@ def test_visual_outlier_is_not_counted_as_the_same_type(catalog_1851):
     a, b = catalog_1851
     m = matching.find(main.catalog_db, make_coin(), [b""], FakeIndex({a: 0.92, b: 0.70}))
     assert [r["id"] for r in m.same] == [a]
+
+
+@pytest.mark.parametrize(
+    "face,denomination,expected",
+    [
+        (0.2, "20 Centimes", [0.2, 20.0]),  # the catalog stores sub-units either way
+        (10, "10 Francs", [10]),
+        (None, "5 Lire", [5.0]),
+        (0.5, "10 Soldi", [0.5, 10.0]),
+        (None, None, []),
+    ],
+)
+def test_face_values_cover_sub_units(face, denomination, expected):
+    assert matching.face_values(make_coin(face_value=face, denomination=denomination)) == expected

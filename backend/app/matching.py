@@ -20,6 +20,22 @@ SAME_TYPE_MARGIN = 0.05
 # "FRANCE-1851A-10 Francs …", "FRANCE-1717 W-Ecu …", "FRANCE-1854-A-10 FRANCS …", "HONGRIE-1911 KB-10 Korona …"
 LISTING_DATE = re.compile(r"-(\d{4})(?:/\d+)?(?:\s*-?\s*([A-Z]{1,2}))?(?=\s*-)")
 GADOURY_REF = re.compile(r"\bG(?:ad(?:oury)?)?\.?\s*(\d+[a-z]?)\b", re.I)
+LEADING_NUMBER = re.compile(r"^\s*(\d+(?:[.,]\d+)?)")
+
+
+def face_values(coin: CoinIdentification) -> list[float]:
+    """Face values the catalog may record for this coin.
+
+    The catalog is inconsistent about sub-units ('20 CENTIMES' is stored as 20 or as 0.2), and readings vary the
+    same way, so accept both the reading's face value and the number written in its denomination.
+    """
+    out = [] if coin.face_value is None else [coin.face_value]
+    m = LEADING_NUMBER.match(coin.denomination or "")
+    if m:
+        n = float(m.group(1).replace(",", "."))
+        if n not in out:
+            out.append(n)
+    return out
 
 
 def listing_mint(name: str) -> str | None:
@@ -57,9 +73,10 @@ def candidates(db: sqlite3.Connection, coin: CoinIdentification) -> tuple[list[s
     where = ["country_iso = ?", "year = ?", "price > 0"]
     params: list = [coin.country_iso.upper(), coin.year]
     criteria = ["country", "year"]
-    if coin.face_value is not None:
-        where.append("face_value = ?")
-        params.append(coin.face_value)
+    faces = face_values(coin)
+    if faces:
+        where.append(f"face_value IN ({', '.join('?' * len(faces))})")
+        params += faces
         criteria.append("face_value")
     rows = db.execute(f"SELECT * FROM coins WHERE {' AND '.join(where)}", params).fetchall()
 
