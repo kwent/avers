@@ -1,88 +1,145 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 import { useI18n } from '../i18n';
-import { CatalogMatch, GradePrice } from '../lib/api';
+import { Comparable, Estimate, GradePrice } from '../lib/api';
 import { gradeName, money, sourceLabel } from '../lib/format';
-import { colors, font } from '../lib/theme';
-import { Card, Label } from './ui';
+import { CoinWell, cn, Row, Section, T } from './ui';
 
-/** The catalog entry the coin was matched to: the reference for its facts and prices. */
-export function MatchCard({ match }: { match: CatalogMatch }) {
-  const { m } = useI18n();
-  return (
-    <Pressable
-      onPress={() => Linking.openURL(match.url)}
-      accessibilityRole="link"
-      accessibilityLabel={`${m.estimate.match} : ${match.name}`}
-      testID="catalog-match"
-    >
-      <Card style={{ borderColor: colors.success, borderWidth: 2 }}>
-        <View style={styles.matchHeader}>
-          <Ionicons name="checkmark-circle" size={24} color={colors.success} />
-          <Label style={{ color: colors.success }}>{m.estimate.match}</Label>
-        </View>
-        <View style={styles.matchRow}>
-          {match.images.slice(0, 2).map((uri) => (
-            <Image key={uri} source={{ uri }} style={styles.matchImg} contentFit="cover" />
-          ))}
-        </View>
-        <Text style={styles.matchName} selectable>
-          {match.name}
-        </Text>
-        <Text style={styles.small}>
-          {sourceLabel(match.source)} · {match.reason ?? m.estimate.matchWhy(match.criteria ?? [], match.similarity ?? null)}
-        </Text>
-      </Card>
-    </Pressable>
-  );
-}
-
-export function PriceTable({ rows, grade, currency }: { rows: GradePrice[]; grade: string; currency: string }) {
+/** Shop and resale price for each grade the catalog has, the coin's own grade highlighted. */
+export function PriceTable({
+  rows,
+  grade,
+  currency,
+  explanation,
+}: {
+  rows: GradePrice[];
+  grade: string;
+  currency: string;
+  explanation: string;
+}) {
   const { m, locale } = useI18n();
   const known = rows.filter((r) => r.retail != null);
-  if (!known.length) return null;
+  if (!known.length) {
+    return explanation ? (
+      <Section title={m.estimate.whyTitle}>
+        <Row label={explanation} />
+      </Section>
+    ) : null;
+  }
+  const tr = 'flex-row items-center gap-2 px-4';
   return (
-    <Card>
-      <Label>{m.estimate.priceByGrade}</Label>
-      <View style={[styles.tr, styles.th]}>
-        <Text style={[styles.td, styles.gradeCol, styles.thText]} />
-        <Text style={[styles.td, styles.thText]}>{m.estimate.colShop}</Text>
-        <Text style={[styles.td, styles.thText]}>{m.estimate.colResale}</Text>
+    <Section title={m.estimate.whyTitle} footer={`${explanation} ${m.estimate.priceNote}`}>
+      <View
+        className={cn(tr, 'min-h-[40px]')}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <T variant="small" tone="soft" className="flex-[1.1]">
+          {m.estimate.colGrade}
+        </T>
+        <T variant="small" tone="soft" className="flex-1 text-right">
+          {m.estimate.colShop}
+        </T>
+        <T variant="small" tone="soft" className="flex-1 text-right">
+          {m.estimate.colResale}
+        </T>
       </View>
       {known.map((r) => {
         const mine = r.grade === grade;
         return (
-          <View key={r.grade} style={[styles.tr, mine && styles.mine]} testID={`price-${r.grade}`}>
-            <View style={[styles.td, styles.gradeCol]}>
-              <Text style={[styles.gradeText, mine && styles.bold]}>{gradeName(r.grade, m).split(' — ')[0]}</Text>
-              {mine && <Text style={styles.mineText}>{m.estimate.yourGrade}</Text>}
+          <View
+            key={r.grade}
+            className={cn(tr, 'min-h-touch py-2', mine && 'bg-gold-tint')}
+            testID={`price-${r.grade}`}
+            accessible
+            accessibilityLabel={`${r.grade}, ${gradeName(r.grade, m)}${mine ? `, ${m.estimate.yourGrade}` : ''} : ${m.estimate.colShop} ${money(r.retail, currency, locale)}, ${m.estimate.colResale} ${money(r.resale, currency, locale)}`}
+          >
+            <View className="flex-[1.1]">
+              <T variant="bodyStrong">{r.grade}</T>
+              <T variant="small" tone="soft">
+                {mine ? m.estimate.yourGrade : gradeName(r.grade, m)}
+              </T>
             </View>
-            <Text style={[styles.td, styles.num, mine && styles.bold]}>{money(r.retail, currency, locale)}</Text>
-            <Text style={[styles.td, styles.num, mine && styles.bold]}>{money(r.resale, currency, locale)}</Text>
+            <T variant={mine ? 'bodyStrong' : 'body'} className="flex-1 text-right">
+              {money(r.retail, currency, locale)}
+            </T>
+            <T variant={mine ? 'bodyStrong' : 'body'} tone={mine ? 'gold' : 'ink'} className="flex-1 text-right">
+              {money(r.resale, currency, locale)}
+            </T>
           </View>
         );
       })}
-      <Text style={styles.small}>{m.estimate.priceNote}</Text>
-    </Card>
+    </Section>
   );
 }
 
-const styles = StyleSheet.create({
-  matchHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  matchRow: { flexDirection: 'row', gap: 12, justifyContent: 'center' },
-  matchImg: { width: 110, height: 110, borderRadius: 55, backgroundColor: colors.border },
-  matchName: { fontSize: font.body, fontWeight: '700', color: colors.text },
-  small: { fontSize: 15, color: colors.muted, lineHeight: 20 },
-  tr: { flexDirection: 'row', alignItems: 'center', minHeight: 44, borderRadius: 8, paddingHorizontal: 6 },
-  th: { minHeight: 28 },
-  thText: { fontSize: 15, color: colors.muted, fontWeight: '700', textAlign: 'right' },
-  td: { flex: 1 },
-  gradeCol: { flex: 0.8 },
-  gradeText: { fontSize: font.body, color: colors.text },
-  num: { fontSize: font.body, color: colors.text, textAlign: 'right' },
-  bold: { fontWeight: '800', color: colors.brassDark },
-  mine: { backgroundColor: colors.brassLight },
-  mineText: { fontSize: 13, color: colors.brassDark, fontWeight: '700' },
-});
+/** The catalog entry the coin was matched to, then the comparable listings. */
+export function CatalogSection({ est }: { est: Estimate }) {
+  const { m } = useI18n();
+  const best = new Set(est.valuation?.best_match_ids ?? []);
+  const comparables = [...est.comparables]
+    .filter((c) => c.id !== est.match?.id)
+    .sort((a, b) => Number(best.has(b.id)) - Number(best.has(a.id)))
+    .slice(0, 6);
+  const match = est.match;
+
+  return (
+    <>
+      <Section title={m.estimate.catalogTitle} footer={match ? undefined : m.estimate.noMatch}>
+        {match ? (
+          <Row
+            testID="catalog-match"
+            accessibilityRole="link"
+            accessibilityLabel={`${m.estimate.match} : ${match.name}. ${m.estimate.seeListing}`}
+            onPress={() => Linking.openURL(match.url)}
+            chevron
+            stacked
+            leading={<CoinWell size={64} uri={match.images[0]} icon="ellipse-outline" />}
+            label={match.reason ?? m.estimate.matchWhy(match.criteria ?? [], match.similarity ?? null)}
+            value={
+              <View className="gap-0.5">
+                <T variant="bodyStrong">{match.name}</T>
+                <T variant="smallStrong" tone="accent">
+                  {m.estimate.seeListing} {sourceLabel(match.source)}
+                </T>
+              </View>
+            }
+          />
+        ) : (
+          <Row label={m.estimate.noMatch} />
+        )}
+      </Section>
+
+      {comparables.length > 0 && (
+        <Section title={m.estimate.comparables}>
+          {comparables.map((c) => (
+            <ComparableRow key={c.id} c={c} />
+          ))}
+        </Section>
+      )}
+    </>
+  );
+}
+
+function ComparableRow({ c }: { c: Comparable }) {
+  const { m, locale } = useI18n();
+  const when = c.in_stock ? m.estimate.inStock : m.estimate.sold(c.listed.slice(0, 4));
+  return (
+    <Row
+      accessibilityRole="link"
+      onPress={() => Linking.openURL(c.url)}
+      chevron
+      stacked
+      leading={<CoinWell size={56} uri={c.images[0]} icon="ellipse-outline" />}
+      label={[c.grade, when, sourceLabel(c.source)].filter(Boolean).join(', ')}
+      value={
+        <View className="gap-0.5">
+          <T numberOfLines={2}>{c.name}</T>
+          <T variant="bodyStrong" tone="gold">
+            {money(c.price, c.currency, locale)}
+          </T>
+        </View>
+      }
+    />
+  );
+}

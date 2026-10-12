@@ -24,42 +24,46 @@ tags: [e2e]
     index: 0
 - tapOn: "Estimer la pièce"
 
-- assertVisible: "Analyse de la pièce…"
+- assertVisible: # the fast model can answer before this is checked
+    text: "Analyse de la pièce…"
+    optional: true
 - extendedWaitUntil:
-    visible: "VALEUR ESTIMÉE"
+    visible: "Valeur estimée.*"
     timeout: 120000
 - assertVisible: ".*10 Francs.*1851.*"
 
-# Copy: whole summary, then a single field
-- tapOn:
-    id: "copy-all"
-- assertVisible: "Copié"
-- scrollUntilVisible: # tall card, often already half on screen
-    element:
-      id: "catalog-match"
-    visibilityPercentage: 50
-    centerElement: true
+# Price by grade, metal, record (copy all, then one line), catalog match
 - scrollUntilVisible:
-    element: "VALEUR DU MÉTAL \\(MINIMUM\\)"
-- scrollUntilVisible:
-    element: "PRIX SELON L’ÉTAT"
+    element: "Pourquoi ce prix"
 - scrollUntilVisible:
     element:
       id: "price-SUP"
+- scrollUntilVisible:
+    element: "Le métal"
+- scrollUntilVisible:
+    element:
+      id: "copy-all"
+- tapOn:
+    id: "copy-all"
+- assertVisible: "Copié"
 - scrollUntilVisible:
     element:
       id: "copy-year"
 - tapOn:
     id: "copy-year"
 - scrollUntilVisible:
-    element: "PIÈCES COMPARABLES CHEZ LES MARCHANDS"
+    element:
+      id: "catalog-match"
+    visibilityPercentage: 50
+    centerElement: true
 - scrollUntilVisible:
     element: "Ajouter à ma collection"
+    direction: UP
 - tapOn: "Ajouter à ma collection"
 
 # Item screen
 - extendedWaitUntil:
-    visible: "DANS MA COLLECTION"
+    visible: "Dans ma collection"
     timeout: 15000
 - tapOn: "Plus"
 - assertVisible: "Total :.*"
@@ -68,7 +72,7 @@ tags: [e2e]
 - tapOn: "Retour"
 - tapOn:
     id: "tab-collection"
-- assertVisible: "VALEUR DE MA COLLECTION"
+- assertVisible: "Ma collection vaut environ"
 - assertVisible: "2 pièces.*"
 - assertVisible: "2 × .*10 Francs.*"
 

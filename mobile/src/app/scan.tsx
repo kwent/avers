@@ -4,16 +4,17 @@ import * as Haptics from 'expo-haptics';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../components/ui';
+import { Button, Press, T } from '../components/ui';
 import { useI18n } from '../i18n';
 import { FrameStatus, frameCheck } from '../lib/api';
 import { scan } from '../lib/scanStore';
 import { useSettings } from '../lib/settings';
-import { colors, font } from '../lib/theme';
+import { colors } from '../theme';
 
 const CIRCLE = 0.8; // circle diameter as a fraction of screen width
+const CIRCLE_MAX_HEIGHT = 0.44; // ...but at most this fraction of the height, to leave room for the texts
 const PADDING = 1.1; // crop 10% beyond the circle (the API's frame check assumes this)
 const OUTPUT = 1400; // px, square, final photo
 const CHECK_SIZE = 480; // px, square, live frame check
@@ -35,6 +36,7 @@ export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const { width: W, height: H } = useWindowDimensions();
+  const guide = Math.min(CIRCLE * W, CIRCLE_MAX_HEIGHT * H); // on-screen circle diameter
   const [step, setStep] = useState<'front' | 'back'>('front');
   const [torch, setTorch] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -48,9 +50,14 @@ export default function ScanScreen() {
   // Crop the photo to the square around the on-screen circle (preview is "cover"-scaled).
   const cropToGuide = async (uri: string, w: number, h: number, size: number, compress: number) => {
     const scale = Math.max(W / w, H / h);
-    const side = Math.min(w, h, ((CIRCLE * W) / scale) * PADDING);
+    const side = Math.min(w, h, (guide / scale) * PADDING);
     const image = await ImageManipulator.manipulate(uri)
-      .crop({ originX: (w - side) / 2, originY: (h - side) / 2, width: side, height: side })
+      .crop({
+        originX: (w - side) / 2,
+        originY: (h - side) / 2,
+        width: side,
+        height: side,
+      })
       .resize({ width: Math.min(size, Math.round(side)) })
       .renderAsync();
     return (await image.saveAsync({ format: SaveFormat.JPEG, compress })).uri;
@@ -122,7 +129,10 @@ export default function ScanScreen() {
         if (cancelled || capturing.current || !camera.current) continue;
         let uri: string;
         try {
-          const photo = await takePicture({ quality: 0.5, shutterSound: false });
+          const photo = await takePicture({
+            quality: 0.5,
+            shutterSound: false,
+          });
           if (cancelled || capturing.current) continue;
           uri = await cropToGuide(photo.uri, photo.width, photo.height, CHECK_SIZE, 0.7);
         } catch {
@@ -150,26 +160,28 @@ export default function ScanScreen() {
     };
   }, [permission?.granted, ready, step, settings]);
 
-  if (!permission) return <View style={styles.black} />;
+  if (!permission) return <View className="flex-1 bg-black" />;
   if (!permission.granted) {
     return (
-      <SafeAreaView style={styles.permission}>
-        <Text style={styles.permissionText}>{m.scan.permission}</Text>
+      <SafeAreaView className="flex-1 justify-center gap-4 bg-ground p-gutter">
+        <T variant="heading" className="mb-3 text-center">
+          {m.scan.permission}
+        </T>
         <Button title={m.scan.allowCamera} onPress={requestPermission} />
         <Button title={m.common.cancel} variant="secondary" onPress={() => router.back()} />
       </SafeAreaView>
     );
   }
 
-  const d = CIRCLE * W;
-  const ringColor = status === 'ok' ? colors.success : status ? colors.warning : colors.brassLight;
+  const d = guide;
+  const ringColor = status === 'ok' ? '#5CC97A' : status ? '#F2B84B' : colors.cream;
   const guidance = status ? m.scan.guide[status] : m.scan.hint;
 
   return (
-    <View style={styles.black}>
+    <View className="flex-1 bg-black">
       <CameraView
         ref={camera}
-        style={StyleSheet.absoluteFill}
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         facing="back"
         autofocus="on"
         selectedLens={lens}
@@ -178,7 +190,7 @@ export default function ScanScreen() {
       />
 
       {/* dim everything outside the circle */}
-      <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.center]}>
+      <View pointerEvents="none" className="absolute inset-0 items-center justify-center">
         <View
           testID="guide-ring"
           style={{
@@ -192,40 +204,66 @@ export default function ScanScreen() {
         />
       </View>
 
-      <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
-        <View style={styles.topBar}>
-          <Pressable accessibilityLabel={m.scan.close} onPress={() => router.back()} style={styles.iconButton}>
+      <SafeAreaView className="flex-1 justify-between" edges={['top', 'bottom']}>
+        <View className="flex-row justify-between px-4">
+          <Pressable
+            accessibilityLabel={m.scan.close}
+            onPress={() => router.back()}
+            className="h-14 w-14 items-center justify-center"
+          >
             <Ionicons name="close" size={34} color="#fff" />
           </Pressable>
-          <Pressable
-            accessibilityLabel={torch ? m.scan.torchOff : m.scan.torchOn}
-            onPress={() => setTorch((t) => !t)}
-            style={styles.iconButton}
-          >
-            <Ionicons name={torch ? 'flashlight' : 'flashlight-outline'} size={30} color="#fff" />
-          </Pressable>
-        </View>
-
-        <View style={styles.instructions}>
-          <Text style={styles.step}>{m.scan.step(step === 'front' ? 1 : 2)}</Text>
-          <Text style={styles.prompt}>{step === 'front' ? m.scan.promptFront : m.scan.promptBack}</Text>
-        </View>
-
-        <View style={styles.bottom}>
-          <View style={[styles.guidance, { borderColor: ringColor }]}>
-            <Text style={styles.guidanceText} accessibilityLiveRegion="polite">
-              {guidance}
-            </Text>
-          </View>
-          <View style={styles.bottomBar}>
-            <View style={styles.side} />
-            <Pressable accessibilityLabel={m.scan.shoot} onPress={capture} style={[styles.shutter, !ready && { opacity: 0.5 }]} disabled={busy || !ready}>
-              {busy ? <ActivityIndicator color={colors.brass} size="large" /> : <View style={styles.shutterInner} />}
+          {Platform.OS !== 'web' && ( // browsers cannot drive the torch
+            <Pressable
+              accessibilityLabel={torch ? m.scan.torchOff : m.scan.torchOn}
+              onPress={() => setTorch((t) => !t)}
+              className="h-14 w-14 items-center justify-center"
+            >
+              <Ionicons name={torch ? 'flashlight' : 'flashlight-outline'} size={30} color="#fff" />
             </Pressable>
-            <View style={styles.side}>
+          )}
+        </View>
+
+        {/* above the circle, whatever the screen height */}
+        <View className="absolute left-0 right-0 items-center gap-1 px-gutter" style={{ bottom: (H + d) / 2 + 16 }}>
+          <T variant="bodyStrong" tone="soft">
+            {m.scan.step(step === 'front' ? 1 : 2)}
+          </T>
+          <T variant="title" className="text-center text-white">
+            {step === 'front' ? m.scan.promptFront : m.scan.promptBack}
+          </T>
+        </View>
+
+        <View className="gap-4">
+          <View
+            className="mx-gutter self-center rounded-full border-2 bg-well/85 px-gutter py-3"
+            style={{ borderColor: ringColor }}
+          >
+            <T variant="heading" className="text-center text-white" accessibilityLiveRegion="polite">
+              {guidance}
+            </T>
+          </View>
+          <View className="flex-row items-center justify-between px-6 pb-4">
+            <View className="w-[90px] items-center" />
+            <Press
+              accessibilityLabel={m.scan.shoot}
+              onPress={capture}
+              disabled={busy || !ready}
+              scaleTo={0.92}
+              className={`h-[88px] w-[88px] items-center justify-center rounded-full border-[5px] border-white ${ready ? '' : 'opacity-50'}`}
+            >
+              {busy ? (
+                <ActivityIndicator color="#fff" size="large" />
+              ) : (
+                <View className="h-[68px] w-[68px] rounded-full bg-white" />
+              )}
+            </Press>
+            <View className="w-[90px] items-center">
               {step === 'back' && (
-                <Pressable onPress={() => router.replace('/result')} style={styles.skip}>
-                  <Text style={styles.skipText}>{m.scan.skip}</Text>
+                <Pressable onPress={() => router.replace('/result')} className="p-3">
+                  <T variant="button" className="text-white">
+                    {m.scan.skip}
+                  </T>
                 </Pressable>
               )}
             </View>
@@ -235,41 +273,3 @@ export default function ScanScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  black: { flex: 1, backgroundColor: '#000' },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  overlay: { flex: 1, justifyContent: 'space-between' },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 },
-  iconButton: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
-  instructions: { alignItems: 'center', gap: 4, position: 'absolute', top: 110, left: 0, right: 0 },
-  step: { color: colors.brassLight, fontSize: font.body, fontWeight: '700' },
-  prompt: { color: '#fff', fontSize: font.title, fontWeight: '800', textAlign: 'center', paddingHorizontal: 20 },
-  bottom: { gap: 16 },
-  guidance: {
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderWidth: 2,
-    borderRadius: 999,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    marginHorizontal: 20,
-  },
-  guidanceText: { color: '#fff', fontSize: font.large, fontWeight: '700', textAlign: 'center' },
-  bottomBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingBottom: 16 },
-  side: { width: 90, alignItems: 'center' },
-  shutter: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    borderWidth: 5,
-    borderColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shutterInner: { width: 68, height: 68, borderRadius: 34, backgroundColor: colors.brass },
-  skip: { padding: 12 },
-  skipText: { color: '#fff', fontSize: font.large, fontWeight: '700' },
-  permission: { flex: 1, backgroundColor: colors.bg, padding: 24, gap: 16, justifyContent: 'center' },
-  permissionText: { fontSize: font.large, color: colors.text, textAlign: 'center', marginBottom: 12 },
-});

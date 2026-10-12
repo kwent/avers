@@ -1,8 +1,8 @@
-# Opens Avers in Expo Go, points it at the throwaway test API (${API_URL}, set by scripts/e2e-ios.sh),
-# switches the UI to French (flows assert French copy) and lands on the Scanner tab.
+# Opens Avers in Expo Go, pointed at the throwaway test API (${API_URL}, set by scripts/e2e-ios.sh) with the UI in
+# French (flows assert French copy), and lands on the Scanner tab. Development builds read both from the link.
 appId: host.exp.Exponent
 ---
-- openLink: exp://127.0.0.1:8081
+- openLink: exp://127.0.0.1:8081/--/?lang=fr&api=${encodeURIComponent(API_URL)}
 - tapOn:
     text: "Cancel" # photo picker left open by an aborted run
     optional: true
@@ -25,23 +25,6 @@ appId: host.exp.Exponent
     visible:
       id: "tab-scanner"
     timeout: 60000
-- tapOn:
-    id: "tab-settings"
-- tapOn:
-    id: "language-fr"
-- tapOn:
-    id: "server-url"
-- eraseText: 80 # the field selects its whole content on focus; erase covers older builds too
-- inputText: ${API_URL}
-- hideKeyboard
-- scrollUntilVisible:
-    element:
-      id: "server-save"
-- tapOn:
-    id: "server-save"
-- extendedWaitUntil:
-    visible: "Connecté ✓.*"
-    timeout: 15000
 - tapOn:
     id: "tab-scanner"
 - assertVisible: "Combien vaut ma pièce ?"

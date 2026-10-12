@@ -1,14 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, TextInput, View } from 'react-native';
 import { EstimateView } from '../../components/EstimateView';
-import { Button, Card, Label } from '../../components/ui';
+import { Button, Notice, Press, Row, Section, T } from '../../components/ui';
 import { errorText, useI18n } from '../../i18n';
 import { deleteItem, getItem, Item, patchItem, photoUrl } from '../../lib/api';
 import { range } from '../../lib/format';
 import { useSettings } from '../../lib/settings';
-import { colors, font } from '../../lib/theme';
+import { colors } from '../../theme';
 
 export default function ItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,108 +35,108 @@ export default function ItemScreen() {
     }
   };
 
-  const remove = () =>
+  const doRemove = async () => {
+    await deleteItem(settings, Number(id));
+    router.back();
+  };
+
+  const remove = () => {
+    // react-native-web has no multi-button Alert
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${m.item.removeTitle}\n${m.item.removeBody}`)) doRemove();
+      return;
+    }
     Alert.alert(m.item.removeTitle, m.item.removeBody, [
       { text: m.common.cancel, style: 'cancel' },
-      {
-        text: m.item.removeConfirm,
-        style: 'destructive',
-        onPress: async () => {
-          await deleteItem(settings, Number(id));
-          router.back();
-        },
-      },
+      { text: m.item.removeConfirm, style: 'destructive', onPress: doRemove },
     ]);
+  };
 
-  if (error) return <Text style={[styles.body, { padding: 24 }]}>{error}</Text>;
-  if (!item) return <ActivityIndicator style={{ marginTop: 48 }} size="large" color={colors.brass} />;
+  if (error) {
+    return (
+      <View className="p-gutter">
+        <Notice tone="danger">{error}</Notice>
+      </View>
+    );
+  }
+  if (!item) return <ActivityIndicator className="mt-12" size="large" color={colors.gold} />;
 
-  return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Card style={{ backgroundColor: colors.brassLight, borderColor: colors.brass }}>
-        <Label>{m.item.inCollection}</Label>
-        <View style={styles.qtyRow}>
-          <Text style={styles.body}>{m.item.quantity}</Text>
-          <View style={styles.stepper}>
-            <Pressable
-              accessibilityLabel={m.item.less}
-              style={styles.stepButton}
-              onPress={() => item.quantity > 1 && update({ quantity: item.quantity - 1 })}
-            >
-              <Ionicons name="remove" size={28} color={colors.brassDark} />
-            </Pressable>
-            <Text style={styles.qty}>{item.quantity}</Text>
-            <Pressable
-              accessibilityLabel={m.item.more}
-              style={styles.stepButton}
-              onPress={() => update({ quantity: item.quantity + 1 })}
-            >
-              <Ionicons name="add" size={28} color={colors.brassDark} />
-            </Pressable>
-          </View>
-        </View>
-        {item.quantity > 1 && (
-          <Text style={styles.body}>
-            {m.item.total(
+  const stepper = (
+    <View className="flex-row items-center gap-3">
+      <Press
+        accessibilityRole="button"
+        accessibilityLabel={m.item.less}
+        disabled={item.quantity <= 1}
+        className={`h-[52px] w-[52px] items-center justify-center rounded-full border-2 border-gold ${item.quantity <= 1 ? 'opacity-40' : ''}`}
+        onPress={() => update({ quantity: item.quantity - 1 })}
+      >
+        <Ionicons name="remove" size={28} color={colors.gold} />
+      </Press>
+      <T variant="title" className="min-w-[36px] text-center" accessibilityLiveRegion="polite">
+        {item.quantity}
+      </T>
+      <Press
+        accessibilityRole="button"
+        accessibilityLabel={m.item.more}
+        className="h-[52px] w-[52px] items-center justify-center rounded-full border-2 border-gold"
+        onPress={() => update({ quantity: item.quantity + 1 })}
+      >
+        <Ionicons name="add" size={28} color={colors.gold} />
+      </Press>
+    </View>
+  );
+
+  const collectionSection = (
+    <Section
+      title={m.item.inCollection}
+      footer={
+        item.quantity > 1
+          ? m.item.total(
               range(
                 (item.value_low ?? 0) * item.quantity,
                 (item.value_high ?? 0) * item.quantity,
                 item.value_currency,
                 locale,
               ),
-            )}
-          </Text>
-        )}
+            )
+          : undefined
+      }
+    >
+      <Row label={m.item.quantity} value={stepper} />
+      <View className="p-3">
         <TextInput
-          style={styles.notes}
+          className="min-h-[96px] rounded-sm bg-ground p-3 font-regular text-body text-cream"
+          textAlignVertical="top"
           placeholder={m.item.notes}
-          placeholderTextColor={colors.muted}
+          placeholderTextColor={colors['cream-soft']}
+          accessibilityLabel={m.item.notes}
           multiline
           value={notes}
           onChangeText={setNotes}
           onBlur={() => notes !== (item.notes ?? '') && update({ notes })}
         />
-      </Card>
+      </View>
+    </Section>
+  );
 
+  return (
+    <ScrollView contentContainerClassName="pb-8" keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
       {item.estimate ? (
         <EstimateView
           est={{ ...item.estimate, already_owned: 0 }}
           photos={[photoUrl(settings, item.photo_front), photoUrl(settings, item.photo_back)]}
-        />
+        >
+          {collectionSection}
+        </EstimateView>
       ) : (
-        <Text style={styles.title}>{item.title}</Text>
+        <View className="gap-6 p-gutter">
+          <T variant="title">{item.title}</T>
+          {collectionSection}
+        </View>
       )}
-
-      <Button title={m.item.remove} variant="danger" onPress={remove} />
+      <View className="px-gutter">
+        <Button title={m.item.remove} variant="danger" icon="trash-outline" onPress={remove} />
+      </View>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 20, gap: 16, paddingBottom: 48 },
-  title: { fontSize: font.title, fontWeight: '800', color: colors.text },
-  body: { fontSize: font.body, color: colors.text },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  stepButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2,
-    borderColor: colors.brass,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-  },
-  qty: { fontSize: font.title, fontWeight: '800', minWidth: 36, textAlign: 'center', color: colors.text },
-  notes: {
-    minHeight: 80,
-    fontSize: font.body,
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    color: colors.text,
-  },
-});

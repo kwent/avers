@@ -1,19 +1,24 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EstimateView } from '../components/EstimateView';
-import { Button } from '../components/ui';
+import { ActionBar, Button, CoinWell, Notice, T } from '../components/ui';
 import { errorText, useI18n } from '../i18n';
 import { addItem, Estimate, estimate } from '../lib/api';
 import { resetScan, scan } from '../lib/scanStore';
 import { useSettings } from '../lib/settings';
-import { colors, font } from '../lib/theme';
+import { colors } from '../theme';
+
+const success = () => {
+  if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+};
 
 export default function ResultScreen() {
   const { settings } = useSettings();
   const { m, language } = useI18n();
+  const insets = useSafeAreaInsets();
   const [est, setEst] = useState<Estimate | null>(scan.estimate);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -25,7 +30,7 @@ export default function ResultScreen() {
       .then((e) => {
         scan.estimate = e;
         setEst(e);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        success();
       })
       .catch((e) => setError(errorText(e, m)));
   };
@@ -39,7 +44,7 @@ export default function ResultScreen() {
     setSaving(true);
     try {
       const item = await addItem(settings, est);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      success();
       resetScan();
       router.dismissAll();
       router.push({ pathname: '/item/[id]', params: { id: String(item.id) } });
@@ -52,10 +57,9 @@ export default function ResultScreen() {
 
   if (error) {
     return (
-      <View style={styles.center}>
-        <Ionicons name="alert-circle" size={64} color={colors.danger} />
-        <Text style={styles.message}>{error}</Text>
-        <Button title={m.result.retry} onPress={run} />
+      <View className="flex-1 justify-center gap-4 p-gutter">
+        <Notice tone="danger">{error}</Notice>
+        <Button title={m.result.retry} icon="refresh" onPress={run} />
         <Button title={m.result.retake} variant="secondary" onPress={() => router.replace('/scan')} />
       </View>
     );
@@ -63,10 +67,19 @@ export default function ResultScreen() {
 
   if (!est) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.brass} />
-        <Text style={styles.message}>{m.result.analyzing}</Text>
-        <Text style={styles.hint}>{m.result.analyzingHint}</Text>
+      <View className="flex-1 items-center justify-center gap-4 p-gutter">
+        <View>
+          <CoinWell size={160} uri={scan.front} />
+          <View className="absolute inset-0 items-center justify-center rounded-full bg-well/45">
+            <ActivityIndicator size="large" color={colors.cream} />
+          </View>
+        </View>
+        <T variant="heading" className="text-center" accessibilityLiveRegion="polite">
+          {m.result.analyzing}
+        </T>
+        <T tone="soft" className="text-center">
+          {m.result.analyzingHint}
+        </T>
       </View>
     );
   }
@@ -75,14 +88,20 @@ export default function ResultScreen() {
   if (coin.status !== 'identified') {
     const notCoin = coin.status === 'not_a_coin';
     return (
-      <ScrollView contentContainerStyle={[styles.container, { flexGrow: 1, justifyContent: 'center' }]}>
-        <Ionicons name={notCoin ? 'close-circle' : 'help-circle'} size={72} color={colors.warning} />
-        <Text style={styles.message} testID="not-identified">
+      <ScrollView contentContainerClassName="grow justify-center gap-4 p-gutter">
+        <View className="items-center">
+          <CoinWell size={140} uri={scan.front} />
+        </View>
+        <T variant="title" className="text-center" testID="not-identified" accessibilityRole="header">
           {notCoin ? m.result.notCoin : m.result.unidentifiable}
-        </Text>
-        <Text style={styles.reason}>{coin.status_reason || m.result.unidentifiableFallback}</Text>
-        {!notCoin && <Text style={styles.hint}>{m.result.unidentifiableHint}</Text>}
-        <Button title={m.result.retake} onPress={() => router.replace('/scan')} />
+        </T>
+        <T className="text-center">{coin.status_reason || m.result.unidentifiableFallback}</T>
+        {!notCoin && (
+          <T tone="soft" className="text-center">
+            {m.result.unidentifiableHint}
+          </T>
+        )}
+        <Button title={m.result.retake} icon="camera" onPress={() => router.replace('/scan')} />
         <Button title={m.home.fromLibrary} variant="secondary" onPress={() => router.replace('/pick')} />
       </ScrollView>
     );
@@ -93,25 +112,25 @@ export default function ResultScreen() {
   const shown = swapped ? [scan.back, scan.front] : [scan.front, scan.back];
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <EstimateView est={est} photos={shown.map((p) => p ?? undefined)} />
-      <Button
-        title={m.result.add}
-        icon={<Ionicons name="add-circle" size={28} color="#fff" />}
-        onPress={save}
-        loading={saving}
-        style={{ minHeight: 72 }}
-      />
-      <Button title={m.result.scanAnother} variant="secondary" onPress={() => router.replace('/scan')} />
-      <Text style={styles.hint}>{m.result.disclaimer}</Text>
-    </ScrollView>
+    <View className="flex-1">
+      <ScrollView contentContainerClassName="pb-6">
+        <EstimateView est={est} photos={shown.map((p) => p ?? undefined)} />
+        <View className="gap-4 px-gutter">
+          <Button
+            title={m.result.scanAnother}
+            variant="secondary"
+            icon="camera-outline"
+            onPress={() => router.replace('/scan')}
+          />
+          <T variant="small" tone="soft" className="text-center">
+            {m.result.disclaimer}
+          </T>
+        </View>
+      </ScrollView>
+      {/* the main action stays within thumb reach while reading the details */}
+      <ActionBar bottomInset={insets.bottom}>
+        <Button title={m.result.add} icon="add-circle-outline" onPress={save} loading={saving} />
+      </ActionBar>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 20, gap: 16, paddingBottom: 48 },
-  center: { flex: 1, padding: 24, gap: 16, justifyContent: 'center', alignItems: 'stretch' },
-  message: { fontSize: font.large, fontWeight: '700', color: colors.text, textAlign: 'center' },
-  hint: { fontSize: font.small, color: colors.muted, textAlign: 'center', lineHeight: 22 },
-  reason: { fontSize: font.body, color: colors.text, textAlign: 'center', lineHeight: 26 },
-});

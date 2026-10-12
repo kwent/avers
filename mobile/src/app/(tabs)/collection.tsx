@@ -1,21 +1,22 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
-import { Image } from 'expo-image';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { Button, Card, Label } from '../../components/ui';
-import { errorText, useI18n } from '../../i18n';
+import { FlatList, RefreshControl, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Band, Button, CoinWell, cn, Notice, Row, Segmented, T } from '../../components/ui';
+import { currencyOf, errorText, useI18n } from '../../i18n';
 import { CollectionResponse, getCollection, Item, photoUrl } from '../../lib/api';
 import { gradeName, money, range } from '../../lib/format';
 import { useSettings } from '../../lib/settings';
-import { colors, font } from '../../lib/theme';
+import { colors } from '../../theme';
 
 type Sort = 'value' | 'year' | 'recent';
 const SORTS: Sort[] = ['value', 'year', 'recent'];
+const THUMB = 72;
 
 export default function CollectionScreen() {
   const { settings } = useSettings();
   const { m, locale } = useI18n();
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState<CollectionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,85 +43,89 @@ export default function CollectionScreen() {
     return list;
   }, [data, sort]);
 
-  const cur = data?.currency ?? settings.currency;
+  const cur = data?.currency ?? currencyOf(settings);
+  const empty = data?.totals.count === 0;
+  const last = items.length - 1;
 
   return (
     <FlatList
-      contentContainerStyle={styles.container}
+      contentContainerClassName="pb-8"
       data={items}
       keyExtractor={(i) => String(i.id)}
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.gold} />}
       ListHeaderComponent={
-        <View style={{ gap: 16 }}>
-          {error && (
-            <Card style={{ borderColor: colors.danger }}>
-              <Text style={styles.body}>{error}</Text>
-            </Card>
-          )}
-          {data && (
-            <Card style={{ backgroundColor: colors.brassLight, borderColor: colors.brass }}>
-              <Label>{m.collection.total}</Label>
-              <Text style={styles.hero}>{range(data.totals.value_low, data.totals.value_high, cur, locale)}</Text>
-              <Text style={styles.body}>
-                {m.collection.summary(data.totals.count, money(data.totals.melt, cur, locale))}
-              </Text>
-            </Card>
-          )}
-          {items.length > 1 && (
-            <View style={styles.sorts}>
-              <Text style={styles.sortLabel}>{m.collection.sortBy}</Text>
-              {SORTS.map((key) => (
-                <Pressable key={key} onPress={() => setSort(key)} style={[styles.sort, sort === key && styles.sortActive]}>
-                  <Text style={[styles.sortText, sort === key && { color: '#fff' }]}>{m.collection.sort[key]}</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
+        <View>
+          <Band className="gap-1" style={{ paddingTop: insets.top + 24 }}>
+            <T variant="heading" tone="ink" accessibilityRole="header">
+              {empty ? m.tabs.collection : m.collection.total}
+            </T>
+            {data && !empty && (
+              <>
+                <T variant="display" tone="gold" testID="collection-total">
+                  {range(data.totals.value_low, data.totals.value_high, cur, locale)}
+                </T>
+                <T tone="soft">{m.collection.summary(data.totals.count, money(data.totals.melt, cur, locale))}</T>
+              </>
+            )}
+          </Band>
+          <View className="gap-4 p-gutter pb-4">
+            {error && <Notice tone="danger">{error}</Notice>}
+            {items.length > 1 && (
+              <Segmented
+                label={m.collection.sortBy}
+                options={SORTS.map((key) => ({ key, label: m.collection.sort[key] }))}
+                value={sort}
+                onChange={setSort}
+              />
+            )}
+          </View>
         </View>
       }
       ListEmptyComponent={
         data ? (
-          <View style={styles.empty}>
-            <Ionicons name="albums-outline" size={72} color={colors.muted} />
-            <Text style={styles.emptyText}>{m.collection.empty}</Text>
-            <Button title={m.collection.scanFirst} onPress={() => router.push('/scan')} />
+          <View className="items-center gap-4 p-gutter pt-6">
+            <CoinWell size={128} icon="albums-outline" />
+            <T variant="heading" className="text-center">
+              {m.collection.empty}
+            </T>
+            <T tone="soft" className="text-center">
+              {m.collection.emptyHint}
+            </T>
+            <View className="self-stretch">
+              <Button title={m.collection.scanFirst} icon="camera" onPress={() => router.push('/scan')} />
+            </View>
           </View>
         ) : null
       }
-      renderItem={({ item }) => (
-        <Pressable onPress={() => router.push({ pathname: '/item/[id]', params: { id: String(item.id) } })}>
-          <Card style={styles.item}>
-            <Image source={{ uri: photoUrl(settings, item.photo_front) }} style={styles.thumb} contentFit="cover" />
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={styles.itemTitle} numberOfLines={2}>
+      renderItem={({ item, index }) => (
+        <View className={cn('mx-gutter bg-surface', index === 0 && 'rounded-t-md', index === last && 'rounded-b-md')}>
+          {index > 0 && <View className="h-px bg-line" style={{ marginLeft: 16 + THUMB + 12 }} />}
+          <Row
+            onPress={() => router.push({ pathname: '/item/[id]', params: { id: String(item.id) } })}
+            chevron
+            stacked
+            leading={<CoinWell size={THUMB} uri={photoUrl(settings, item.photo_front)} />}
+            label={
+              <T variant="bodyStrong" numberOfLines={2}>
                 {item.quantity > 1 ? `${item.quantity} × ` : ''}
                 {item.title}
-              </Text>
-              <Text style={styles.itemMeta}>{item.grade ? gradeName(item.grade, m) : ''}</Text>
-              <Text style={styles.itemValue}>{range(item.value_low, item.value_high, cur, locale)}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={28} color={colors.muted} />
-          </Card>
-        </Pressable>
+              </T>
+            }
+            value={
+              <View className="gap-0.5">
+                {!!item.grade && item.grade !== 'unknown' && (
+                  <T variant="small" tone="soft">
+                    {item.grade} ({gradeName(item.grade, m)})
+                  </T>
+                )}
+                <T variant="bodyStrong" tone="gold">
+                  {range(item.value_low, item.value_high, cur, locale)}
+                </T>
+              </View>
+            }
+          />
+        </View>
       )}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 20, gap: 12, paddingBottom: 48 },
-  hero: { fontSize: font.title + 2, fontWeight: '800', color: colors.brassDark },
-  body: { fontSize: font.body, color: colors.text },
-  sorts: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  sortLabel: { fontSize: font.body, color: colors.muted },
-  sort: { borderWidth: 2, borderColor: colors.brass, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
-  sortActive: { backgroundColor: colors.brass },
-  sortText: { fontSize: font.small, fontWeight: '700', color: colors.brassDark },
-  item: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 12 },
-  thumb: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.border },
-  itemTitle: { fontSize: font.body, fontWeight: '700', color: colors.text },
-  itemMeta: { fontSize: font.small, color: colors.muted },
-  itemValue: { fontSize: font.large, fontWeight: '800', color: colors.brassDark },
-  empty: { alignItems: 'center', gap: 16, paddingTop: 40 },
-  emptyText: { fontSize: font.large, color: colors.muted },
-});

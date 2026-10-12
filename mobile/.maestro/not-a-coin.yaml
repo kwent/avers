@@ -15,6 +15,6 @@ tags: [e2e]
     visible: "Ce n’est pas une pièce de monnaie"
     timeout: 120000
 - assertVisible: ".*verre.*"
-- assertNotVisible: "VALEUR ESTIMÉE"
+- assertNotVisible: "Valeur estimée.*"
 - assertNotVisible: "Ajouter à ma collection"
 - tapOn: "Retour"

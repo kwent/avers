@@ -6,9 +6,13 @@ tags: [smoke]
 - runFlow: subflows/open-app.yaml
 - tapOn:
     id: "tab-settings"
+- scrollUntilVisible: # the screen keeps its scroll position between runs
+    element:
+      id: "language-en"
+    direction: UP
 - tapOn:
     id: "language-en"
-- assertVisible: "LANGUAGE"
+- assertVisible: "Language"
 - assertVisible: "Automatic.*"
 - tapOn:
     id: "tab-scanner"
@@ -16,9 +20,9 @@ tags: [smoke]
 - assertVisible: "Photograph a coin"
 - tapOn:
     id: "tab-collection"
-- assertVisible: "MY COLLECTION’S VALUE"
+- assertVisible: "My collection.*"
 - tapOn:
     id: "tab-settings"
 - tapOn:
     id: "language-fr"
-- assertVisible: "LANGUE"
+- assertVisible: "Langue"

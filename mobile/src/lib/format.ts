@@ -31,7 +31,12 @@ export function confidence(c: number, m: Messages): { text: string; tone: 'succe
 
 export const metalName = (metal: string, m: Messages) => m.metals[metal as keyof Messages['metals']] ?? metal;
 
+/** Name of a grade code (TTB -> Très Très Beau). */
 export const gradeName = (grade: string, m: Messages) => m.grades[grade as keyof Messages['grades']] ?? grade;
+
+/** Grade as plain text, code first: "TTB (Très Très Beau)". */
+export const gradeLabel = (grade: string, m: Messages) =>
+  grade === 'unknown' ? gradeName(grade, m) : `${grade} (${gradeName(grade, m)})`;
 
 export function sourceLabel(source: string): string {
   return source === 'gadoury' ? 'Gadoury' : source;

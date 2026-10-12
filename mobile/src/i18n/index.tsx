@@ -1,6 +1,6 @@
 import { getLocales } from 'expo-localization';
 import { createContext, ReactNode, useContext, useMemo } from 'react';
-import { useSettings } from '../lib/settings';
+import { CURRENCIES, Settings, useSettings } from '../lib/settings';
 import en from './en';
 import fr, { Messages } from './fr';
 
@@ -30,6 +30,22 @@ function formattingLocale(language: Language): string {
   return device?.languageTag ?? language;
 }
 
+/**
+ * Currency that goes with a language: the device's own when it speaks that language (fr-CH: CHF, en-GB: GBP), else
+ * the usual one (English: USD, French: EUR). Only a default: a currency picked in Settings wins.
+ */
+export function suggestedCurrency(language: Language): string {
+  const device = getLocales().find((l) => l.languageCode === language)?.currencyCode;
+  if (device && CURRENCIES.includes(device)) return device;
+  return language === 'en' ? 'USD' : 'EUR';
+}
+
+export const resolveLanguage = (s: Settings): Language => (s.language === 'auto' ? detectLanguage() : s.language);
+
+/** The currency prices are shown in. */
+export const currencyOf = (s: Settings): string =>
+  s.currency === 'auto' ? suggestedCurrency(resolveLanguage(s)) : s.currency;
+
 type I18n = { m: Messages; language: Language; locale: string };
 
 const Ctx = createContext<I18n>({ m: fr, language: 'fr', locale: 'fr-FR' });
@@ -37,7 +53,7 @@ const Ctx = createContext<I18n>({ m: fr, language: 'fr', locale: 'fr-FR' });
 export function I18nProvider({ children }: { children: ReactNode }) {
   const { settings } = useSettings();
   const value = useMemo(() => {
-    const language = settings.language === 'auto' ? detectLanguage() : settings.language;
+    const language = resolveLanguage(settings);
     return { m: LANGUAGES[language].messages, language, locale: formattingLocale(language) };
   }, [settings.language]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -1,5 +1,6 @@
 import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
+import { currencyOf } from '../i18n';
 import { Settings } from './settings';
 
 export type Grade = 'B' | 'TB' | 'TTB' | 'SUP' | 'SPL' | 'FDC' | 'unknown';
@@ -78,7 +79,6 @@ export type CatalogMatch = {
 };
 
 export type GradePrice = { grade: string; retail: number | null; resale: number | null; points: number };
-
 
 export type Estimate = {
   currency: string;
@@ -169,7 +169,7 @@ export async function estimate(s: Settings, front: string, back: string | null, 
   const form = new FormData();
   await appendPhoto(form, 'front', front);
   if (back) await appendPhoto(form, 'back', back);
-  form.append('currency', s.currency);
+  form.append('currency', currencyOf(s));
   form.append('language', language);
   return request(s, '/estimate', { method: 'POST', body: form });
 }
@@ -184,9 +184,9 @@ export async function frameCheck(s: Settings, uri: string): Promise<FrameCheck> 
   return request(s, '/frame-check', { method: 'POST', body: form });
 }
 
-export const getCollection = (s: Settings) => request<CollectionResponse>(s, `/collection?currency=${s.currency}`);
+export const getCollection = (s: Settings) => request<CollectionResponse>(s, `/collection?currency=${currencyOf(s)}`);
 
-export const getItem = (s: Settings, id: number) => request<Item>(s, `/collection/${id}?currency=${s.currency}`);
+export const getItem = (s: Settings, id: number) => request<Item>(s, `/collection/${id}?currency=${currencyOf(s)}`);
 
 export const addItem = (s: Settings, est: Estimate, quantity = 1) =>
   request<Item>(s, '/collection', {
@@ -196,7 +196,7 @@ export const addItem = (s: Settings, est: Estimate, quantity = 1) =>
   });
 
 export const patchItem = (s: Settings, id: number, patch: Partial<Item>) =>
-  request<Item>(s, `/collection/${id}?currency=${s.currency}`, {
+  request<Item>(s, `/collection/${id}?currency=${currencyOf(s)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),

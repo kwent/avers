@@ -9,13 +9,27 @@ tags: [smoke]
 
 - tapOn:
     id: "tab-collection"
-- assertVisible: "VALEUR DE MA COLLECTION"
+- assertVisible: "Ma collection.*"
 
 - tapOn:
     id: "tab-settings"
 - tapOn:
     id: "currency-EUR"
+- scrollUntilVisible: # the connection settings exist only in development builds
+    element:
+      id: "server-toggle"
+- runFlow: # folded by default
+    when:
+      notVisible:
+        id: "server-save"
+    commands:
+      - tapOn:
+          id: "server-toggle"
+- scrollUntilVisible: # the button can sit under the tab bar, where a tap lands on a tab
+    element:
+      id: "server-save"
+    centerElement: true
 - tapOn: "Enregistrer et tester"
 - extendedWaitUntil:
-    visible: "Connecté ✓.*"
+    visible: "Connecté, .*"
     timeout: 15000
