@@ -92,7 +92,7 @@ Lexend type ramp, spacing, radius) live in `mobile/src/theme/tokens.js` and feed
 - **API** (`backend/`, Vercel project `avers-api`): FastAPI on Vercel Functions (Python, Frankfurt region next to the database). The catalog
   ships read-only inside the function, the collection and its photos live in Postgres (Neon, from the Vercel
   Marketplace). `backend/deploy.sh` copies the catalog and the ONNX model into the bundle and deploys; both stay out
-  of git. Environment: `AI_GATEWAY_API_KEY`, `APP_TOKEN`, `DATABASE_URL`, `CORS_ORIGINS`, `MAX_ESTIMATES_PER_DAY` (default 100), `COINS_DB=.deploy/catalog.sqlite`,
+  of git. Environment: `AI_GATEWAY_API_KEY`, `APP_TOKEN`, `DATABASE_URL`, `CORS_ORIGINS`, `MAX_ESTIMATES_PER_DAY` (default 100, set to 300), `COINS_DB=.deploy/catalog.sqlite`,
   `COINS_DB_READONLY=1`, `VISION_ONNX=.deploy/dinov2-small.onnx`, `CRON_SECRET`, optional `NUMISTA_API_KEY`.
 - **Weekly catalog refresh**: a Vercel cron (`vercel.json`, Mondays 03:00 UTC) calls `/cron/catalog` with
   `CRON_SECRET`; it reads the source's listings again (the scraper is deployed with the API but not in this
