@@ -110,3 +110,39 @@ def test_a_wrong_gadoury_number_falls_back_to_text_search(monkeypatch):
     monkeypatch.setattr(numista, "_lists", {})
     coin = make_coin(catalog_refs=["G. 476"])
     assert numista.find_type(None, coin)["id"] == CERES["id"]
+
+
+def test_one_old_listing_is_weighed_with_numistas_current_prices(monkeypatch, fake_numista):
+    from datetime import date
+
+    from app import db as catalog
+
+    db = main.catalog_db
+    coin_id = catalog.upsert_coin(
+        db,
+        {
+            "source": "test",
+            "source_id": "old",
+            "name": "FRANCE-1851A-10 Francs G. 1012 TTB",
+            "country_iso": "FR",
+            "year": 1851,
+            "face_value": 10,
+            "metal": "Or",
+            "weight_g": 3.22,
+            "grade": "TTB",
+            "price": 3000,
+            "currency": "EUR",
+            "in_stock": 0,
+            "modified": f"{date.today().year - 12}-01-01",
+        },
+        [],
+    )
+    db.commit()
+    try:
+        est = estimate_of(monkeypatch, catalog_refs=["G. 1012"])
+        sources = [p["source"] for p in est["valuation"]["points"]]
+        assert est["valuation"]["source"] == "catalog" and "numista" in sources and "test" in sources
+        assert est["valuation"]["retail_high"] < 3000  # Numista's recent 700/900 pull the old 3000 down
+    finally:
+        db.execute("DELETE FROM coins WHERE id = ?", (coin_id,))
+        db.commit()

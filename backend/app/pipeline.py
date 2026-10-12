@@ -240,6 +240,9 @@ def price(
         if result["year_check"]:
             return result  # no price until the user says which year the coin shows
         points, source = _numista_points(ref), "numista"
+    elif pricing.low_confidence(points):
+        # few or old listings (they run high, see bench/pricing.py): Numista's current prices count too
+        points += _numista_points(ref)
     if not points:
         return result
 

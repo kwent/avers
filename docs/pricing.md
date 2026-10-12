@@ -47,9 +47,10 @@ Every grade's shop price is at least the metal value + 5 %.
   (geometric midpoints with the neighbouring grades).
 - **Between private collectors** (the big number in the app): 80 % of the shop price, as dealers buy about 20 %
   under their selling price. Never below the metal value.
-- **Few or old prices** (a single price, or the newest 7+ years old): the range reaches down to the price ÷ 1.4,
-  never below the metal value. The backtest shows such estimates miss by ~40% and come out too high. The app says
-  so under the price.
+- **Few or old prices** (a single price, or the newest 7+ years old): Numista's current price per grade is added
+  to the listings, and the range reaches down to the price ÷ 1.4, never below the metal value. The backtest shows
+  such estimates miss by ~40% and come out too high. The app says so under the price.
+- **Sure value**: the metal value is shown under the price as what a dealer pays for the metal in the coin.
 - **Graded below every listed grade**: between the metal value and the next listed grade's price.
 - **Graded above every listed grade**: no price (nothing to bound it).
 - No grade read: no price.

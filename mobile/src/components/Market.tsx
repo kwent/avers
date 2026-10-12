@@ -93,7 +93,8 @@ export function PriceTable({
 export function priceSources(est: Estimate, m: Messages, locale: string): ReactNode[] {
   const v = est.valuation;
   const grade = est.identification.grade;
-  const numista = v?.source !== 'numista' ? est.numista : null;
+  // Numista for comparison, unless its prices are already among those used
+  const numista = v?.points?.some((p) => p.source === 'numista') ? null : est.numista;
   const numistaPrice = numista?.prices?.[grade];
   const rows: ReactNode[] = (v?.points ?? []).map((p, i) => {
     const when =

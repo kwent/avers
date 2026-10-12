@@ -189,6 +189,11 @@ function EstimateContent({
                 {m.estimate.shopPrice(range(v.retail_low, v.retail_high, cur, locale))}
               </T>
             )}
+            {est.melt && (
+              <T tone="soft" className="mt-2">
+                {m.estimate.safeValue(money(est.melt.value, cur, locale))}
+              </T>
+            )}
           </Animated.View>
         ) : (
           // No reliable price: say so plainly, and give the one sure figure, the metal value, as a floor.

@@ -90,6 +90,7 @@ const fr = {
         : 'Vous avez déjà une pièce comme celle-ci dans votre collection.',
     worthLead: 'Elle vaut environ',
     worthSub: 'entre particuliers',
+    safeValue: (amount: string) => `Valeur sûre : ${amount}, ce qu’un négociant paie pour le métal qu’elle contient.`,
     value: 'Valeur estimée',
     shopPrice: (range: string) => `${range} chez un marchand`,
     whyTitle: 'Pourquoi ce prix',

@@ -84,6 +84,7 @@ const en: Messages = {
         : 'You already have a coin like this one in your collection.',
     worthLead: 'It is worth about',
     worthSub: 'between private collectors',
+    safeValue: (amount) => `Sure value: ${amount}, what a dealer pays for the metal in it.`,
     value: 'Estimated value',
     shopPrice: (range) => `${range} at a dealer`,
     whyTitle: 'Why this price',
