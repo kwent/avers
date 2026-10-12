@@ -242,3 +242,21 @@ def test_photo_without_thumbnail_gets_one(monkeypatch, fake_vision):
     thumb = Image.open(io.BytesIO(client.get("/uploads/old.jpg?size=thumb").content))
     assert thumb.size == (main.THUMB_SIDE, main.THUMB_SIDE)
     assert main.store.thumb("old.jpg")[0] is not None  # kept for next time
+
+
+def test_reprice_a_saved_coin_with_its_corrected_year_and_grade(monkeypatch, catalog_1851):
+    monkeypatch.setattr(identify, "identify", lambda images, language: make_coin(year=1850))  # misread, no listing
+    est = client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")}).json()
+    item = client.post("/collection", json={"estimate": est}).json()
+    assert item["value_low"] is None
+    client.patch(f"/collection/{item['id']}", json={"year": 1851, "grade": "SUP"})  # the user corrects the coin
+
+    preview = client.post(f"/collection/{item['id']}/reprice", params={"save": "false"}).json()
+    assert preview["estimate"]["valuation"]["retail_low"] > 600  # SUP, between TTB 600 and SUP 1000
+    assert client.get(f"/collection/{item['id']}").json()["value_low"] is None  # preview changes nothing
+
+    saved = client.post(f"/collection/{item['id']}/reprice").json()
+    assert saved["value_low"] == preview["estimate"]["valuation"]["value_low"]
+    assert (saved["year"], saved["grade"]) == (1851, "SUP")
+    assert saved["estimate"]["identification"]["year"] == 1851
+    client.delete(f"/collection/{item['id']}")

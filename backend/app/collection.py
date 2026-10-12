@@ -194,6 +194,26 @@ class Store:
         )
         return self.query(sql, params)[0]["id"]
 
+    def set_estimate(self, item_id: int, estimate: dict) -> None:
+        """A saved coin's new estimate (re-priced): its value and the facts the catalog settles. The title, year,
+        grade, quantity and notes stay as the user kept them."""
+        estimate = {k: v for k, v in estimate.items() if k not in SCAN_ONLY}
+        coin, valuation = estimate["identification"], estimate.get("valuation") or {}
+        self.execute(
+            "UPDATE items SET estimate = ?, value_low = ?, value_high = ?, value_currency = ?, metal = ?,"
+            " fineness = ?, weight_g = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (
+                json.dumps(estimate, ensure_ascii=False),
+                valuation.get("value_low"),
+                valuation.get("value_high"),
+                estimate["currency"],
+                coin.get("metal"),
+                coin.get("fineness"),
+                coin.get("weight_g"),
+                item_id,
+            ),
+        )
+
     def items(self) -> list[dict]:
         return self.query(f"SELECT {ITEM_LIST_COLUMNS} FROM items ORDER BY created_at DESC, id DESC")
 

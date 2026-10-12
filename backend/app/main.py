@@ -222,6 +222,24 @@ def patch_item(item_id: int, body: ItemPatch, currency: str = "EUR"):
     return get_item(item_id, currency)
 
 
+@app.post("/collection/{item_id}/reprice")
+def reprice_item(item_id: int, save: bool = True, currency: str = "EUR"):
+    """Price a saved coin again from its saved reading (no AI call), keeping its year and grade. `save=false`
+    previews the new estimate without changing the coin."""
+    row = store.get(item_id)
+    if not row:
+        raise HTTPException(404)
+    previous = json.loads(row["estimate"] or "null")
+    if not previous:
+        raise HTTPException(422, "no saved estimate to re-price")
+    sources = pipeline.Sources(catalog_db, store, visual_index)
+    est = pipeline.reprice(previous, sources, year=row["year"], grade=row["grade"])
+    if not save:
+        return {"estimate": est}
+    store.set_estimate(item_id, est)
+    return get_item(item_id, currency)
+
+
 @app.delete("/collection/{item_id}")
 def delete_item(item_id: int):
     store.delete(item_id)

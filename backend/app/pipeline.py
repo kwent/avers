@@ -136,8 +136,18 @@ def run(photos: list[tuple[bytes, str]], currency: str, language: str, src: Sour
 
 def correct_year(previous: dict, year: int, src: Sources) -> dict:
     """Re-price a previous estimate with the year the user reads on the coin. Same reading, no AI call."""
+    return reprice(previous, src, year=year)
+
+
+def reprice(previous: dict, src: Sources, year: int | None = None, grade: str | None = None) -> dict:
+    """Price a previous reading again: with the year the user reads on the coin, or a saved coin after the catalog
+    or the pricing improved (with the year and grade kept in the collection, which the user may have corrected).
+    Same reading, no AI call."""
     coin = identify.CoinIdentification.model_validate(previous["identification"])
-    set_year(coin, year)
+    if year and year != coin.year:
+        set_year(coin, year)
+    if grade in pricing.GRADES:
+        coin.grade = grade
     names = [n for n in (previous["photos"]["front"], previous["photos"]["back"]) if n]
     queries = []
     if src.index is not None:
