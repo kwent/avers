@@ -287,12 +287,24 @@ class Store:
             (cutoff,),
         )
 
-    def photo(self, name: str, thumb: bool = False) -> bytes | None:
-        """The photo, or its small version when asked and there is one."""
-        rows = self.query("SELECT data, thumb FROM photos WHERE name = ?", (name,))
+    def photo(self, name: str) -> bytes | None:
+        rows = self.query("SELECT data FROM photos WHERE name = ?", (name,))
+        return bytes(rows[0]["data"]) if rows else None
+
+    def thumb(self, name: str) -> tuple[bytes | None, bytes | None]:
+        """(small version, full photo): the full photo only when there is no small version yet."""
+        rows = self.query(
+            "SELECT thumb, CASE WHEN thumb IS NULL THEN data END AS data FROM photos WHERE name = ?", (name,)
+        )
         if not rows:
-            return None
-        return bytes((thumb and rows[0]["thumb"]) or rows[0]["data"])
+            return None, None
+        r = rows[0]
+        return (bytes(r["thumb"]) if r["thumb"] is not None else None), (
+            bytes(r["data"]) if r["data"] is not None else None
+        )
+
+    def set_thumb(self, name: str, thumb: bytes) -> None:
+        self.execute("UPDATE photos SET thumb = ? WHERE name = ?", (thumb, name))
 
 
 def connect() -> Store:

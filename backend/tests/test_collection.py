@@ -65,9 +65,11 @@ def test_daily_usage_counter(store):
 def test_photo_thumbnail_and_query_vectors(store):
     store.put_photo("a.jpg", b"full", b"small")
     store.put_photo("b.jpg", b"full only")
-    assert store.photo("a.jpg", thumb=True) == b"small"
+    assert store.thumb("a.jpg") == (b"small", None)
     assert store.photo("a.jpg") == b"full"
-    assert store.photo("b.jpg", thumb=True) == b"full only"  # older photos have no thumbnail
+    assert store.thumb("b.jpg") == (None, b"full only")  # older photos have no thumbnail
+    store.set_thumb("b.jpg", b"made")
+    assert store.thumb("b.jpg") == (b"made", None)
     assert store.embedding("a.jpg") is None
     store.set_embedding("a.jpg", b"\x01\x02")
     assert store.embedding("a.jpg") == b"\x01\x02"

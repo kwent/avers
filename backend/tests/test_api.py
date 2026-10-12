@@ -232,3 +232,12 @@ def test_photo_thumbnail(monkeypatch, fake_vision):
     thumb = Image.open(io.BytesIO(client.get(f"/uploads/{name}?size=thumb").content))
     assert full.size == (1200, 900)
     assert max(thumb.size) == main.THUMB_SIDE
+
+
+def test_photo_without_thumbnail_gets_one(monkeypatch, fake_vision):
+    buf = io.BytesIO()
+    Image.new("RGB", (1000, 1000), "gold").save(buf, "JPEG")
+    main.store.put_photo("old.jpg", buf.getvalue())  # stored before thumbnails existed
+    thumb = Image.open(io.BytesIO(client.get("/uploads/old.jpg?size=thumb").content))
+    assert thumb.size == (main.THUMB_SIDE, main.THUMB_SIDE)
+    assert main.store.thumb("old.jpg")[0] is not None  # kept for next time

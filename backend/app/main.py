@@ -51,10 +51,15 @@ def _normalize_photo(upload: UploadFile) -> tuple[bytes, str]:
         raise HTTPException(400, f"{upload.filename}: unreadable image") from e
     img.thumbnail((MAX_SIDE, MAX_SIDE))
     data = _jpeg(img, 88)
-    img.thumbnail((THUMB_SIDE, THUMB_SIDE))
     name = f"{uuid.uuid4().hex}.jpg"
-    store.put_photo(name, data, _jpeg(img, 80))
+    store.put_photo(name, data, _thumb(img))
     return data, name
+
+
+def _thumb(img: Image.Image) -> bytes:
+    img = img.copy()
+    img.thumbnail((THUMB_SIDE, THUMB_SIDE))
+    return _jpeg(img, 80)
 
 
 def _jpeg(img: Image.Image, quality: int) -> bytes:
@@ -226,7 +231,13 @@ def delete_item(item_id: int):
 @app.get("/uploads/{name}")
 def photo(name: str, size: str = "full"):
     """Photos of the user's coins (exempt from the app token, see check_token). `size=thumb` for lists."""
-    data = store.photo(name, thumb=size == "thumb")
+    if size == "thumb":
+        data, full = store.thumb(name)
+        if data is None and full is not None:  # photos stored before thumbnails: make it once
+            data = _thumb(Image.open(io.BytesIO(full)))
+            store.set_thumb(name, data)
+    else:
+        data = store.photo(name)
     if data is None:
         raise HTTPException(404)
     return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})
