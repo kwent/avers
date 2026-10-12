@@ -2,11 +2,13 @@
 
 import os
 import sqlite3
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DB_PATH = Path(os.environ.get("COINS_DB", ROOT / "data" / "coins.sqlite"))
-IMAGES_DIR = Path(os.environ.get("COINS_IMAGES", ROOT / "data" / "images"))
+BACKEND = ROOT / "backend"  # relative paths in the environment are resolved from here
+DB_PATH = BACKEND / os.environ.get("COINS_DB", ROOT / "data" / "coins.sqlite")
+IMAGES_DIR = BACKEND / os.environ.get("COINS_IMAGES", ROOT / "data" / "images")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS coins (
@@ -44,7 +46,15 @@ CREATE INDEX IF NOT EXISTS idx_coins_metal ON coins(metal);
 """
 
 
-def connect(path: Path = DB_PATH) -> sqlite3.Connection:
+# Hosted API: the catalog ships inside the function, on a read-only disk.
+READ_ONLY = os.environ.get("COINS_DB_READONLY") == "1"
+
+
+def connect(path: Path = DB_PATH, read_only: bool = READ_ONLY) -> sqlite3.Connection:
+    if read_only:
+        db = sqlite3.connect(f"file:{path}?immutable=1", uri=True, check_same_thread=False)
+        db.row_factory = sqlite3.Row
+        return db
     path.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(path, check_same_thread=False)
     db.row_factory = sqlite3.Row
@@ -74,3 +84,29 @@ def upsert_coin(db: sqlite3.Connection, coin: dict, images: list[tuple[int, str]
         local = old["local_path"] if old is not None and old["url"] == url else None
         db.execute("INSERT INTO coin_images VALUES (?, ?, ?, ?)", (coin_id, position, url, local))
     return coin_id
+
+
+def export_slim(out: Path, src: Path = DB_PATH) -> None:
+    """Copy of the catalog for the hosted API: what serving needs (no raw source payloads, no local image paths)."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.unlink(missing_ok=True)
+    db = sqlite3.connect(out)
+    db.execute("ATTACH DATABASE ? AS src", (str(src),))
+    db.executescript(SCHEMA)
+    cols = [r[1] for r in db.execute("PRAGMA main.table_info(coins)") if r[1] != "raw"]
+    db.execute(f"INSERT INTO coins ({', '.join(cols)}) SELECT {', '.join(cols)} FROM src.coins")
+    db.execute("INSERT INTO coin_images (coin_id, position, url) SELECT coin_id, position, url FROM src.coin_images")
+    has_embeddings = db.execute("SELECT 1 FROM src.sqlite_master WHERE name = 'coin_embeddings'").fetchone()
+    if has_embeddings:
+        db.execute("CREATE TABLE coin_embeddings AS SELECT * FROM src.coin_embeddings")
+    db.commit()
+    db.execute("DETACH DATABASE src")
+    db.execute("VACUUM")
+    db.close()
+    print(f"wrote {out} ({out.stat().st_size / 1e6:.0f} MB)")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3 or sys.argv[1] != "export-slim":
+        sys.exit("usage: python -m app.db export-slim OUT.sqlite")
+    export_slim(Path(sys.argv[2]))

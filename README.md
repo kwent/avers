@@ -45,12 +45,13 @@ with `google/gemini-3.8-flash` as fallback), chosen with the benchmark below.
 
 ```bash
 cd backend
-uv sync --extra vision                                   # vision = local image search (torch + DINOv2)
-uv run --extra vision python -m app.visual build         # once, after importing catalog images
-uv run --extra vision uvicorn app.main:app --host 0.0.0.0 --port 8000
+uv run --extra vision python -m app.visual build         # once, after importing catalog images (torch + DINOv2)
+uv run --extra vision python -m app.visual export        # once: the ONNX model the API serves with
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-Without the `vision` extra the API still works; it just skips the visual look-alike search.
+Serving needs only onnxruntime; without the exported model the API still works, it just skips the visual
+look-alike check. The collection is a local SQLite file, or Postgres when `DATABASE_URL` is set.
 
 The catalog lives in `data/coins.sqlite` (schema in `backend/app/db.py`). It is populated by import tooling that is not part of this repository. Without it the app still identifies coins and computes melt values. It just has no comparables to show.
 
@@ -65,6 +66,15 @@ npx expo start
 
 Scan the QR code with Expo Go on the phone (same Wi-Fi as the API). Expo Go requires the same free Expo account to be
 signed in on the phone and in the CLI (`npx expo login`). The server address can also be changed in the app under **Réglages**.
+
+### Hosting (Vercel)
+
+- **API** (`backend/`, Vercel project `avers-api`): FastAPI on Vercel Functions (Python, Paris region). The catalog
+  ships read-only inside the function, the collection and its photos live in Postgres (Neon, from the Vercel
+  Marketplace). `backend/deploy.sh` copies the catalog and the ONNX model into the bundle and deploys; both stay out
+  of git. Environment: `AI_GATEWAY_API_KEY`, `APP_TOKEN`, `DATABASE_URL`, `CORS_ORIGINS`, `COINS_DB=.deploy/catalog.sqlite`,
+  `COINS_DB_READONLY=1`, `VISION_ONNX=.deploy/dinov2-small.onnx`.
+- **Web app** (`mobile/`, Vercel project `avers`): the Expo web export, installable from Safari ("Add to Home Screen").
 
 ## Development
 

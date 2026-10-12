@@ -40,7 +40,7 @@ def run(
     currency: str,
     language: str,
     catalog_db: sqlite3.Connection,
-    collection_db: sqlite3.Connection,
+    store: collection.Store,
     index=None,
 ) -> dict:
     """photos: [(jpeg bytes, stored file name)], front first."""
@@ -89,7 +89,7 @@ def run(
             "similarity": match.similarity,
         }
     result["identification"] = coin.model_dump()
-    result["already_owned"] = collection.owned_count(collection_db, coin.country_iso, coin.year, coin.denomination)
+    result["already_owned"] = store.owned_count(coin.country_iso, coin.year, coin.denomination)
     melt = metals.melt_value(coin.metal, coin.weight_g, coin.fineness, currency)
     result["melt"] = melt
 

@@ -8,8 +8,9 @@ _tmp = Path(tempfile.mkdtemp(prefix="avers-test-"))
 os.environ["COINS_DB"] = str(_tmp / "coins.sqlite")
 os.environ["COINS_IMAGES"] = str(_tmp / "images")
 os.environ["COLLECTION_DB"] = str(_tmp / "collection.sqlite")
-os.environ["UPLOADS_DIR"] = str(_tmp / "uploads")
-os.environ.setdefault("ANTHROPIC_API_KEY", "test-key")
+os.environ["VISION_ONNX"] = str(_tmp / "no-model.onnx")  # no visual index in tests unless faked
+os.environ.pop("DATABASE_URL", None)
+os.environ.pop("POSTGRES_URL", None)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

@@ -71,7 +71,7 @@ port="${E2E_API_PORT:-8001}"
 api_data="$(mktemp -d)"
 (
   cd ../backend
-  COLLECTION_DB="$api_data/collection.sqlite" UPLOADS_DIR="$api_data/uploads" \
+  COLLECTION_DB="$api_data/collection.sqlite" \
     exec uv run --extra vision uvicorn app.main:app --host 127.0.0.1 --port "$port"
 ) >"$api_data/api.log" 2>&1 &
 pids+=($!)

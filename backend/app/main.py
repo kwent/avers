@@ -9,35 +9,37 @@ import os
 import secrets
 import uuid
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.staticfiles import StaticFiles
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, ImageOps
 from pydantic import BaseModel
 
 from app import collection, framecheck, identify, metals, pipeline, visual
-from app.db import IMAGES_DIR, connect
+from app.db import connect
 
 MAX_SIDE = 1568  # vision models downsize anything larger anyway
 APP_TOKEN = os.environ.get("APP_TOKEN")  # optional shared secret once exposed beyond the LAN
 
 
-def check_token(x_app_token: str | None = Header(default=None)):
+def check_token(request: Request, x_app_token: str | None = Header(default=None)):
+    if request.method == "OPTIONS" or request.url.path.startswith("/uploads/"):
+        return  # image views cannot send headers; photo names are random
     if APP_TOKEN and not (x_app_token and secrets.compare_digest(x_app_token, APP_TOKEN)):
         raise HTTPException(401, "invalid token")
 
 
 app = FastAPI(title="Avers API", dependencies=[Depends(check_token)])
+# The web build of the app is served from another origin (comma-separated list, e.g. https://avers.vercel.app).
+if origins := [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]:
+    app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["*"], allow_headers=["*"], max_age=3600)
 catalog_db = connect()
 # Visual search over catalog photos (optional `vision` extra; built with `python -m app.visual build`)
 visual_index = visual.Index(catalog_db) if visual.available() else None
-collection_db = collection.connect()
-app.mount("/uploads", StaticFiles(directory=collection.UPLOADS_DIR), name="uploads")
-IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/catalog-images", StaticFiles(directory=IMAGES_DIR), name="catalog-images")
+store = collection.connect()
 
 
 def _normalize_photo(upload: UploadFile) -> tuple[bytes, str]:
-    """Fix rotation, downsize, re-encode as JPEG; store a copy in uploads. Returns (jpeg bytes, file name)."""
+    """Fix rotation, downsize, re-encode as JPEG; keep a copy for the collection. Returns (jpeg bytes, photo name)."""
     try:
         img = Image.open(upload.file)
         img = ImageOps.exif_transpose(img).convert("RGB")
@@ -47,7 +49,7 @@ def _normalize_photo(upload: UploadFile) -> tuple[bytes, str]:
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=88)
     name = f"{uuid.uuid4().hex}.jpg"
-    (collection.UPLOADS_DIR / name).write_bytes(buf.getvalue())
+    store.put_photo(name, buf.getvalue())
     return buf.getvalue(), name
 
 
@@ -80,9 +82,10 @@ def estimate(
 ):
     currency = currency.upper()
     language = language if language in identify.LANGUAGES else identify.DEFAULT_LANGUAGE
+    store.prune_photos()
     photos = [_normalize_photo(front)] + ([_normalize_photo(back)] if back else [])
     try:
-        return pipeline.run(photos, currency, language, catalog_db, collection_db, visual_index)
+        return pipeline.run(photos, currency, language, catalog_db, store, visual_index)
     except identify.VisionError as e:
         raise HTTPException(502, f"identification failed: {e}") from e
 
@@ -125,7 +128,7 @@ class ItemPatch(BaseModel):
 
 
 def _item_view(row, currency: str) -> dict:
-    item = {k: row[k] for k in row.keys() if k != "estimate"}  # noqa: SIM118 (sqlite3.Row has no __iter__ over keys)
+    item = {k: v for k, v in row.items() if k != "estimate"}
     src = row["value_currency"]
     item["value_low"] = metals.convert(row["value_low"], src, currency)
     item["value_high"] = metals.convert(row["value_high"], src, currency)
@@ -137,7 +140,7 @@ def _item_view(row, currency: str) -> dict:
 @app.get("/collection")
 def list_collection(currency: str = "EUR"):
     currency = currency.upper()
-    items = [_item_view(r, currency) for r in collection_db.execute("SELECT * FROM items ORDER BY created_at DESC")]
+    items = [_item_view(r, currency) for r in store.items()]
 
     def total(key: str) -> float:
         return round(sum((i[key] or 0) * i["quantity"] for i in items), 2)
@@ -156,13 +159,13 @@ def list_collection(currency: str = "EUR"):
 
 @app.post("/collection")
 def add_item(body: NewItem):
-    item_id = collection.add(collection_db, body.estimate, body.quantity, body.notes)
+    item_id = store.add(body.estimate, body.quantity, body.notes)
     return get_item(item_id, body.estimate.get("currency", "EUR"))
 
 
 @app.get("/collection/{item_id}")
 def get_item(item_id: int, currency: str = "EUR"):
-    row = collection_db.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+    row = store.get(item_id)
     if not row:
         raise HTTPException(404)
     return {**_item_view(row, currency.upper()), "estimate": json.loads(row["estimate"] or "null")}
@@ -170,12 +173,20 @@ def get_item(item_id: int, currency: str = "EUR"):
 
 @app.patch("/collection/{item_id}")
 def patch_item(item_id: int, body: ItemPatch, currency: str = "EUR"):
-    collection.update(collection_db, item_id, body.model_dump(exclude_unset=True))
+    store.update(item_id, body.model_dump(exclude_unset=True))
     return get_item(item_id, currency)
 
 
 @app.delete("/collection/{item_id}")
 def delete_item(item_id: int):
-    collection_db.execute("DELETE FROM items WHERE id = ?", (item_id,))
-    collection_db.commit()
+    store.delete(item_id)
     return {"ok": True}
+
+
+@app.get("/uploads/{name}")
+def photo(name: str):
+    """Photos of the user's coins (exempt from the app token, see check_token)."""
+    data = store.photo(name)
+    if data is None:
+        raise HTTPException(404)
+    return Response(data, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=31536000, immutable"})

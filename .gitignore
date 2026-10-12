@@ -30,3 +30,6 @@ mobile/.maestro/fixtures/
 # Local tool state
 .serena/
 mobile/assets/source/icon-cutout.png
+
+# Hosted API bundle (catalog + model copied in at deploy time)
+backend/.deploy/

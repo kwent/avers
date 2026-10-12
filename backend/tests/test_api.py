@@ -121,6 +121,49 @@ def test_photo_sides(fake_vision, monkeypatch, sides, swapped, warning):
         files={"front": ("f.jpg", jpeg(), "image/jpeg"), "back": ("b.jpg", jpeg(), "image/jpeg")},
     ).json()
     assert est["photo_warning"] == warning
-    uploads = sorted(main.collection.UPLOADS_DIR.iterdir(), key=lambda p: p.stat().st_mtime)[-2:]
-    front, back = (p.name for p in uploads)
+    front, back = (r["name"] for r in main.store.query("SELECT name FROM photos ORDER BY rowid DESC LIMIT 2")[::-1])
     assert (est["photos"]["front"], est["photos"]["back"]) == ((back, front) if swapped else (front, back))
+
+
+def test_photos_are_served_without_the_token_and_pruned(monkeypatch, fake_vision):
+    monkeypatch.setattr(main, "APP_TOKEN", "secret")
+    est = client.post(
+        "/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")}, headers={"X-App-Token": "secret"}
+    ).json()
+    name = est["photos"]["front"]
+    assert client.get(f"/uploads/{name}").status_code == 200  # image views send no header
+    assert client.get("/collection").status_code == 401  # everything else still needs it
+
+    main.store.execute("UPDATE photos SET created_at = '2000-01-01 00:00:00' WHERE name = ?", (name,))
+    main.store.prune_photos()
+    assert client.get(f"/uploads/{name}").status_code == 404  # never saved -> forgotten
+
+
+def test_saved_photos_survive_pruning(fake_vision, catalog_1851):
+    est = client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")}).json()
+    item = client.post("/collection", json={"estimate": est}).json()
+    main.store.execute("UPDATE photos SET created_at = '2000-01-01 00:00:00'")
+    main.store.prune_photos()
+    assert client.get(f"/uploads/{est['photos']['front']}").status_code == 200
+    client.delete(f"/collection/{item['id']}")
+    assert client.get(f"/uploads/{est['photos']['front']}").status_code == 404  # deleted with the item
+
+
+def test_cors_preflight_for_the_web_app(monkeypatch):
+    from fastapi.middleware.cors import CORSMiddleware
+
+    app = main.FastAPI(dependencies=[main.Depends(main.check_token)])
+    app.add_middleware(
+        CORSMiddleware, allow_origins=["https://avers.example"], allow_methods=["*"], allow_headers=["*"]
+    )
+    app.get("/health")(main.health)
+    monkeypatch.setattr(main, "APP_TOKEN", "secret")
+    res = TestClient(app).options(
+        "/health",
+        headers={
+            "Origin": "https://avers.example",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "x-app-token",
+        },
+    )
+    assert res.status_code == 200 and res.headers["access-control-allow-origin"] == "https://avers.example"

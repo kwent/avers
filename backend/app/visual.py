@@ -3,13 +3,17 @@
 Each catalog image gets a DINOv2 embedding (stored in coins.sqlite). A query embeds the user's photos at several
 rotations (a coin can be shot at any angle) and ranks catalog coins by their best-matching image.
 
-Optional: needs the `vision` extra (torch + transformers). Without it, `available()` is False and the API simply
-skips visual candidates.
+Serving uses an ONNX export of the model (onnxruntime: small and quick to start, fits a serverless function);
+building the index and exporting the model need the `vision` extra (torch + transformers + onnx):
 
-Build/refresh the index:  uv run --extra vision python -m app.visual build
+    uv run --extra vision python -m app.visual build     # embed catalog images missing from the index
+    uv run --extra vision python -m app.visual export    # write the ONNX model used at serving time
+
+Without the ONNX model file, `available()` is False and matching relies on catalog references alone.
 """
 
 import io
+import os
 import sqlite3
 import sys
 import threading
@@ -18,11 +22,16 @@ from functools import lru_cache
 import numpy as np
 from PIL import Image, ImageOps
 
-from app.db import IMAGES_DIR, connect
+from app.db import BACKEND, IMAGES_DIR, ROOT, connect
 
 MODEL = "facebook/dinov2-small"
+ONNX_PATH = BACKEND / os.environ.get("VISION_ONNX", ROOT / "data" / "models" / "dinov2-small.onnx")
 ROTATIONS = (0, 45, 90, 135, 180, 225, 270, 315)
 BATCH = 64
+# DINOv2 preprocessing (transformers BitImageProcessor): shortest edge 256 (bicubic), centre crop 224, ImageNet norm
+RESIZE, CROP = 256, 224
+MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS coin_embeddings (
@@ -36,23 +45,14 @@ CREATE TABLE IF NOT EXISTS coin_embeddings (
 
 
 def available() -> bool:
-    try:
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    return ONNX_PATH.exists()
 
 
 @lru_cache(maxsize=1)
-def _model():
-    import torch
-    from transformers import AutoImageProcessor, AutoModel
+def _session():
+    import onnxruntime
 
-    device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
-    processor = AutoImageProcessor.from_pretrained(MODEL)
-    model = AutoModel.from_pretrained(MODEL).to(device).eval()
-    return processor, model, device
+    return onnxruntime.InferenceSession(str(ONNX_PATH), providers=["CPUExecutionProvider"])
 
 
 _lock = threading.Lock()
@@ -66,19 +66,25 @@ def square(img: Image.Image) -> Image.Image:
     return img.crop((left, top, left + side, top + side))
 
 
-def embed(images: list[Image.Image]) -> np.ndarray:
-    import torch
+def preprocess(images: list[Image.Image]) -> np.ndarray:
+    """Images -> (n, 3, 224, 224) float32, as the DINOv2 image processor does."""
+    out = []
+    for img in images:
+        img = img.convert("RGB")
+        scale = RESIZE / min(img.size)
+        img = img.resize((round(img.width * scale), round(img.height * scale)), Image.BICUBIC)
+        left, top = (img.width - CROP) // 2, (img.height - CROP) // 2
+        img = img.crop((left, top, left + CROP, top + CROP))
+        arr = (np.asarray(img, dtype=np.float32) / 255.0 - MEAN) / STD
+        out.append(arr.transpose(2, 0, 1))
+    return np.stack(out).astype(np.float32)
 
-    processor, model, device = _model()
-    with _lock, torch.no_grad():
-        inputs = processor(images=images, return_tensors="pt").to(device)
-        out = model(**inputs)
-        # CLS token + mean of patch tokens: robust for fine-grained instance retrieval
-        cls = out.last_hidden_state[:, 0]
-        patches = out.last_hidden_state[:, 1:].mean(dim=1)
-        vec = torch.cat([cls, patches], dim=1)
-        vec = torch.nn.functional.normalize(vec, dim=1)
-    return vec.cpu().numpy().astype(np.float32)
+
+def embed(images: list[Image.Image]) -> np.ndarray:
+    """L2-normalised CLS + mean-patch embeddings, (n, 768) float32."""
+    with _lock:
+        (vectors,) = _session().run(None, {"pixel_values": preprocess(images)})
+    return vectors.astype(np.float32)
 
 
 def rotations(img: Image.Image) -> list[Image.Image]:
@@ -91,8 +97,10 @@ class Index:
     """All catalog embeddings in memory (≈ 19k × 768 float32 ≈ 60 MB)."""
 
     def __init__(self, db: sqlite3.Connection):
-        db.executescript(SCHEMA)
-        rows = db.execute("SELECT coin_id, vector FROM coin_embeddings WHERE model = ?", (MODEL,)).fetchall()
+        try:
+            rows = db.execute("SELECT coin_id, vector FROM coin_embeddings WHERE model = ?", (MODEL,)).fetchall()
+        except sqlite3.OperationalError:  # catalog without an index yet
+            rows = []
         self.coin_ids = np.array([r[0] for r in rows], dtype=np.int64)
         self.matrix = np.stack([np.frombuffer(r[1], dtype=np.float32) for r in rows]) if rows else None
 
@@ -138,7 +146,49 @@ class Index:
         return self._combine(self._per_photo_best(photos, mask))
 
 
+def _torch_model():
+    import torch
+    from transformers import AutoModel
+
+    class Embedder(torch.nn.Module):
+        """DINOv2 + pooling: CLS token and mean of patch tokens, L2-normalised (robust for instance retrieval)."""
+
+        def __init__(self):
+            super().__init__()
+            self.model = AutoModel.from_pretrained(MODEL)
+
+        def forward(self, pixel_values):
+            hidden = self.model(pixel_values=pixel_values).last_hidden_state
+            vec = torch.cat([hidden[:, 0], hidden[:, 1:].mean(dim=1)], dim=1)
+            return torch.nn.functional.normalize(vec, dim=1)
+
+    return Embedder().eval()
+
+
+def export() -> None:
+    import torch
+
+    ONNX_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with torch.no_grad():
+        torch.onnx.export(
+            _torch_model(),
+            (torch.zeros(1, 3, CROP, CROP),),
+            str(ONNX_PATH),
+            input_names=["pixel_values"],
+            output_names=["embedding"],
+            dynamic_axes={"pixel_values": {0: "batch"}, "embedding": {0: "batch"}},
+            opset_version=17,
+            dynamo=False,
+        )
+    print(f"wrote {ONNX_PATH} ({ONNX_PATH.stat().st_size / 1e6:.0f} MB)")
+
+
 def build(db: sqlite3.Connection) -> None:
+    """Embed catalog images missing from the index (torch, on the GPU when there is one)."""
+    import torch
+
+    device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
+    model = _torch_model().to(device)
     db.executescript(SCHEMA)
     todo = db.execute(
         "SELECT i.coin_id, i.position, i.local_path FROM coin_images i "
@@ -158,7 +208,8 @@ def build(db: sqlite3.Connection) -> None:
                 print(f"  skip {path}: {e}", file=sys.stderr)
         if not images:
             continue
-        vectors = embed(images)
+        with torch.no_grad():
+            vectors = model(torch.from_numpy(preprocess(images)).to(device)).cpu().numpy().astype(np.float32)
         db.executemany(
             "INSERT OR REPLACE INTO coin_embeddings VALUES (?, ?, ?, ?)",
             [(c, p, MODEL, v.tobytes()) for (c, p), v in zip(keys, vectors, strict=True)],
@@ -170,6 +221,7 @@ def build(db: sqlite3.Connection) -> None:
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] != ["build"]:
-        sys.exit("usage: python -m app.visual build")
-    build(connect())
+    commands = {"build": lambda: build(connect()), "export": export}
+    if len(sys.argv) != 2 or sys.argv[1] not in commands:
+        sys.exit("usage: python -m app.visual build|export")
+    commands[sys.argv[1]]()
