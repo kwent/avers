@@ -18,6 +18,7 @@ function Navigator() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="scan" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+      <Stack.Screen name="pick" options={{ title: m.pick.title }} />
       <Stack.Screen name="result" options={{ title: m.result.title }} />
       <Stack.Screen name="item/[id]" options={{ title: m.item.title }} />
     </Stack>

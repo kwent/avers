@@ -1,7 +1,7 @@
 import type { Messages } from './fr';
 
 const en: Messages = {
-  common: { back: 'Back', cancel: 'Cancel', error: 'Error' },
+  common: { back: 'Back', cancel: 'Cancel', error: 'Error', copy: 'Copy', copied: 'Copied' },
   tabs: { scanner: 'Scan', collection: 'My collection', settings: 'Settings' },
   home: {
     title: 'What is my coin worth?',
@@ -11,6 +11,18 @@ const en: Messages = {
     noPhoto: 'No photo selected',
     tipsTitle: 'For a good photo',
     tips: ['Place the coin on a plain, dark background', 'Good light, no glare', 'Center the coin in the circle'],
+  },
+  pick: {
+    title: 'Choose photos',
+    intro: 'Choose one photo of each side of the coin.',
+    front: 'Front (obverse)',
+    frontHint: 'The side with the portrait or main design',
+    back: 'Back (reverse)',
+    backHint: 'The side with the value — optional but recommended',
+    choose: 'Choose',
+    change: 'Change',
+    remove: 'Remove',
+    analyze: 'Estimate the coin',
   },
   scan: {
     permission: 'Avers needs the camera to photograph your coins.',
@@ -41,7 +53,10 @@ const en: Messages = {
     analyzingHint: 'Identifying it, looking up prices and the metal price. This takes about 30 seconds.',
     retry: 'Try again',
     retake: 'Retake photos',
-    notCoin: 'I can’t see a coin in this photo.',
+    notCoin: 'This is not a coin',
+    unidentifiable: 'I can’t identify this coin',
+    unidentifiableHint: 'Rather than guess, Avers prefers not to say. Retake both sides, sharp, straight on and in good light.',
+    unidentifiableFallback: 'What is visible is not enough for a reliable identification.',
     add: 'Add to my collection',
     scanAnother: 'Scan another coin',
     disclaimer:
@@ -49,7 +64,10 @@ const en: Messages = {
     noPhoto: 'No photo.',
   },
   estimate: {
+    sameSide: 'Both photos show the same side. Photograph the other side too for a more reliable estimate.',
     attention: 'Warning',
+    copyAll: 'Copy all',
+    meltShort: 'Metal value',
     alreadyOwned: (n) =>
       n > 1
         ? `You already have ${n} coins like this one in your collection.`

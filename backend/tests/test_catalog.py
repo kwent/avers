@@ -7,7 +7,9 @@ from app.identify import CoinIdentification
 
 def make_coin(**kw) -> CoinIdentification:
     base = dict(
-        is_coin=True,
+        status="identified",
+        status_reason=None,
+        photo_sides=["obverse", "reverse"],
         title="10 Francs Cérès 1851 A",
         country_iso="FR",
         country_name="France",
@@ -80,7 +82,7 @@ def test_comparables_converts_currency(db):
 
 
 def test_comparables_empty_for_non_coin(db):
-    assert catalog.comparables(db, make_coin(is_coin=False), "EUR") == []
+    assert catalog.comparables(db, make_coin(status="not_a_coin"), "EUR") == []
 
 
 @pytest.mark.parametrize(

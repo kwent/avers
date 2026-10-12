@@ -94,3 +94,39 @@ def test_estimate_language(fake_claude, sent, used):
 def test_prompts_name_the_language():
     assert "in English" in identify.IDENTIFY_PROMPT.format(language=identify.language_name("en"))
     assert identify.language_name("de") == "French"  # unsupported -> default
+
+
+@pytest.mark.parametrize("status", ["not_a_coin", "unidentifiable"])
+def test_estimate_never_values_what_it_cannot_identify(monkeypatch, status):
+    monkeypatch.setattr(identify, "identify", lambda images, language: make_coin(status=status, title=""))
+    monkeypatch.setattr(identify, "valuate", lambda *a: pytest.fail("must not value an unidentified coin"))
+    est = client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")}).json()
+    assert est["identification"]["status"] == status
+    assert est["valuation"] is None and est["melt"] is None and est["comparables"] == []
+
+
+def test_low_confidence_is_downgraded():
+    coin = identify.enforce_confidence(make_coin(confidence=0.3))
+    assert coin.status == "unidentifiable"
+    assert identify.enforce_confidence(make_coin(confidence=0.9)).status == "identified"
+
+
+@pytest.mark.parametrize(
+    "sides,swapped,warning",
+    [
+        (["obverse", "reverse"], False, None),
+        (["reverse", "obverse"], True, None),
+        (["obverse", "obverse"], False, "same_side"),
+        (["unclear", "unclear"], False, None),
+    ],
+)
+def test_photo_sides(fake_claude, monkeypatch, sides, swapped, warning):
+    monkeypatch.setattr(identify, "identify", lambda images, language: make_coin(photo_sides=sides))
+    est = client.post(
+        "/estimate",
+        files={"front": ("f.jpg", jpeg(), "image/jpeg"), "back": ("b.jpg", jpeg(), "image/jpeg")},
+    ).json()
+    assert est["photo_warning"] == warning
+    uploads = sorted(main.collection.UPLOADS_DIR.iterdir(), key=lambda p: p.stat().st_mtime)[-2:]
+    front, back = (p.name for p in uploads)
+    assert (est["photos"]["front"], est["photos"]["back"]) == ((back, front) if swapped else (front, back))

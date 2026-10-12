@@ -1,0 +1,20 @@
+# A photo of a glass must be refused, not guessed (real Claude call).
+appId: host.exp.Exponent
+name: Not a coin
+tags: [e2e]
+---
+- runFlow: subflows/open-app.yaml
+- tapOn: "Choisir dans mes photos"
+- tapOn:
+    id: "pick-front"
+- tapOn:
+    text: "Photo, January 03, 2099, [^,]+"
+    index: 0
+- tapOn: "Estimer la pièce"
+- extendedWaitUntil:
+    visible: "Ce n’est pas une pièce de monnaie"
+    timeout: 120000
+- assertVisible: ".*verre.*"
+- assertNotVisible: "VALEUR ESTIMÉE"
+- assertNotVisible: "Ajouter à ma collection"
+- tapOn: "Retour"

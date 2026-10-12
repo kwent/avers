@@ -61,7 +61,11 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      contentContainerStyle={styles.container}
+      automaticallyAdjustKeyboardInsets
+      keyboardShouldPersistTaps="handled"
+    >
       <Card>
         <Label>{m.settings.language}</Label>
         <Chips
@@ -85,6 +89,9 @@ export default function SettingsScreen() {
       <Card>
         <Label>{m.settings.server}</Label>
         <TextInput
+          testID="server-url"
+          selectTextOnFocus
+          clearButtonMode="while-editing"
           style={styles.input}
           value={apiUrl}
           onChangeText={setApiUrl}
@@ -102,7 +109,7 @@ export default function SettingsScreen() {
           secureTextEntry
           placeholder={m.settings.token}
         />
-        <Button title={m.settings.saveTest} onPress={test} />
+        <Button testID="server-save" title={m.settings.saveTest} onPress={test} />
         {status && <Text style={styles.status}>{status}</Text>}
       </Card>
     </ScrollView>

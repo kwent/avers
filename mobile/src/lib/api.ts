@@ -4,7 +4,9 @@ import { Settings } from './settings';
 export type Grade = 'B' | 'TB' | 'TTB' | 'SUP' | 'SPL' | 'FDC' | 'unknown';
 
 export type Identification = {
-  is_coin: boolean;
+  status: 'identified' | 'not_a_coin' | 'unidentifiable';
+  status_reason: string | null;
+  photo_sides: ('obverse' | 'reverse' | 'unclear')[];
   title: string;
   country_iso: string | null;
   country_name: string | null;
@@ -63,6 +65,7 @@ export type Valuation = {
 export type Estimate = {
   currency: string;
   photos: { front: string; back: string | null };
+  photo_warning: 'same_side' | null;
   identification: Identification;
   melt: Melt | null;
   comparables: Comparable[];

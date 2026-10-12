@@ -1,31 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card } from '../../components/ui';
 import { useI18n } from '../../i18n';
-import { toUploadJpeg } from '../../lib/images';
 import { resetScan, scan } from '../../lib/scanStore';
 import { colors, font } from '../../lib/theme';
 
 export default function ScannerHome() {
   const { m } = useI18n();
-
-  const fromLibrary = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      selectionLimit: 2,
-      quality: 0.9,
-    });
-    if (res.canceled) return;
-    if (!res.assets.length) return Alert.alert(m.home.noPhoto);
-    const [front, back] = await Promise.all(res.assets.map((a) => toUploadJpeg(a.uri, a.width, a.height)));
-    resetScan();
-    scan.front = front;
-    scan.back = back ?? null;
-    router.push('/result');
-  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -50,7 +32,7 @@ export default function ScannerHome() {
         title={m.home.fromLibrary}
         variant="secondary"
         icon={<Ionicons name="images" size={26} color={colors.brassDark} />}
-        onPress={fromLibrary}
+        onPress={() => router.push('/pick')}
       />
 
       <Card>

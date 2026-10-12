@@ -70,15 +70,17 @@ CI runs both on every push and pull request.
 
 ### End-to-end tests (iOS Simulator)
 
-[Maestro](https://maestro.dev) flows in `mobile/.maestro/` drive the app in Expo Go: a smoke test, and a full journey
-(pick front and back photos → real estimate → save → collection total → delete).
+[Maestro](https://maestro.dev) flows in `mobile/.maestro/` drive the app in Expo Go: a smoke test, the language
+switch, a full journey (front and back photos → real estimate → copy → save → collection total → delete) and a
+non-coin photo that must be refused.
 
 ```bash
 brew install mobile-dev-inc/tap/maestro          # needs a JDK (e.g. openjdk@21)
-# API on :8000 and `npx expo start` running, coin photos in mobile/.maestro/fixtures/coin-{front,back}.jpg
+# `npx expo start` running; fixture photos in mobile/.maestro/fixtures/: coin-front.jpg, coin-back.jpg, not-coin.jpg
 mobile/scripts/e2e-ios.sh                        # all flows; or pass a flow file
 ```
 
+The script starts its own API on port 8001 with an empty, throwaway collection, so tests never touch real data.
 The full journey makes real Claude calls.
 
 ## Disclaimer

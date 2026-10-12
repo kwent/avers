@@ -1,4 +1,5 @@
-# Opens Avers in Expo Go, switches the UI to French (flows assert French copy) and lands on the Scanner tab.
+# Opens Avers in Expo Go, points it at the throwaway test API (${API_URL}, set by scripts/e2e-ios.sh),
+# switches the UI to French (flows assert French copy) and lands on the Scanner tab.
 appId: host.exp.Exponent
 ---
 - openLink: exp://127.0.0.1:8081
@@ -7,6 +8,9 @@ appId: host.exp.Exponent
     optional: true
 - tapOn:
     text: "Continue" # Expo Go developer-menu onboarding, first launch only
+    optional: true
+- tapOn:
+    id: "xmark" # Expo Go developer menu, opened on first launch of a fresh install
     optional: true
 - repeat: # back out of any screen a previous run stopped on
     times: 4
@@ -25,6 +29,19 @@ appId: host.exp.Exponent
     id: "tab-settings"
 - tapOn:
     id: "language-fr"
+- tapOn:
+    id: "server-url"
+- eraseText: 80 # the field selects its whole content on focus; erase covers older builds too
+- inputText: ${API_URL}
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: "server-save"
+- tapOn:
+    id: "server-save"
+- extendedWaitUntil:
+    visible: "Connecté ✓.*"
+    timeout: 15000
 - tapOn:
     id: "tab-scanner"
 - assertVisible: "Combien vaut ma pièce ?"

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Run the Maestro e2e flows against Expo Go in the iOS Simulator.
 #
-# Prereqs: Xcode, Maestro (brew install mobile-dev-inc/tap/maestro), a JDK, the API running on :8000,
-# and `npx expo start` running (or pass --start). Coin photos go in .maestro/fixtures/coin-{front,back}.jpg.
+# Prereqs: Xcode, Maestro (brew install mobile-dev-inc/tap/maestro), a JDK, uv, and `npx expo start` running
+# (or pass --start). The flows talk to a throwaway API started here on $E2E_API_PORT (default 8001) with its own
+# empty collection, so test runs never touch real data; the catalog database is shared read-only. Fixture photos go in .maestro/fixtures/: coin-front.jpg, coin-back.jpg and not-coin.jpg (any non-coin object).
 #
 # Usage: scripts/e2e-ios.sh [--start] [flow.yaml ...]   (default: all flows in .maestro/)
 set -euo pipefail
@@ -26,9 +27,12 @@ print((booted or devices)[0]['udid'])
 xcrun simctl boot "$udid" 2>/dev/null || true
 xcrun simctl bootstatus "$udid" -b >/dev/null
 
-for f in .maestro/fixtures/coin-front.jpg .maestro/fixtures/coin-back.jpg; do
+for f in .maestro/fixtures/{coin-front,coin-back,not-coin}.jpg; do
   [[ -f "$f" ]] || { echo "missing fixture $f" >&2; exit 1; }
 done
+# Add the fixtures to the simulator library once (they pile up otherwise and push each other out of view).
+marker="${XDG_CACHE_HOME:-$HOME/.cache}/avers-e2e/$udid-$(cat .maestro/fixtures/*.jpg | shasum | cut -c1-12)"
+if [[ ! -f "$marker" ]]; then
 # Stamp each fixture with its own far-future capture date so the flow can pick it by its
 # accessibility label ("Photo, January 02, 2099, ...") no matter how many copies past runs added.
 stamped="$(mktemp -d)"
@@ -36,21 +40,39 @@ uv run --quiet --no-project --with pillow python - "$stamped" <<'PY'
 import sys
 from PIL import Image
 out = sys.argv[1]
-for side, date in (("front", "2099:01:02 12:00:00"), ("back", "2099:01:01 12:00:00")):
-    img = Image.open(f".maestro/fixtures/coin-{side}.jpg")
+for name, date in (("coin-front", "2099:01:02 12:00:00"), ("coin-back", "2099:01:01 12:00:00"),
+                   ("not-coin", "2099:01:03 12:00:00")):
+    img = Image.open(f".maestro/fixtures/{name}.jpg")
     exif = img.getexif()
     exif[0x0132] = date  # DateTime
     exif.get_ifd(0x8769)[0x9003] = date  # DateTimeOriginal
-    img.save(f"{out}/coin-{side}.jpg", exif=exif, quality=95)
+    img.save(f"{out}/{name}.jpg", exif=exif, quality=95)
 PY
-xcrun simctl addmedia "$udid" "$stamped/coin-front.jpg" "$stamped/coin-back.jpg"
+xcrun simctl addmedia "$udid" "$stamped/coin-front.jpg" "$stamped/coin-back.jpg" "$stamped/not-coin.jpg"
+mkdir -p "$(dirname "$marker")" && touch "$marker"
+fi
+
+pids=()
+cleanup() { for p in "${pids[@]}"; do kill "$p" 2>/dev/null || true; done; }
+trap cleanup EXIT
 
 if [[ $START_EXPO == 1 ]]; then
   npx expo start --ios --port 8081 >/tmp/avers-expo.log 2>&1 &
-  trap 'kill %1 2>/dev/null || true' EXIT
+  pids+=($!)
   until curl -sf http://localhost:8081/status >/dev/null; do sleep 2; done
 fi
 
-curl -sf "${EXPO_PUBLIC_API_URL:-http://localhost:8000}/health" >/dev/null || { echo "API not reachable" >&2; exit 1; }
+port="${E2E_API_PORT:-8001}"
+api_data="$(mktemp -d)"
+(
+  cd ../backend
+  COLLECTION_DB="$api_data/collection.sqlite" UPLOADS_DIR="$api_data/uploads" \
+    exec uv run uvicorn app.main:app --host 127.0.0.1 --port "$port"
+) >"$api_data/api.log" 2>&1 &
+pids+=($!)
+until curl -sf "http://localhost:$port/health" >/dev/null; do sleep 1; done
 
-maestro --device "$udid" test "${FLOWS[@]}"
+# Start from a clean app: a picker or sheet left open by an aborted run blocks every flow
+xcrun simctl terminate "$udid" host.exp.Exponent 2>/dev/null || true
+
+maestro --device "$udid" test -e API_URL="http://localhost:$port" "${FLOWS[@]}"

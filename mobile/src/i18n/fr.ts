@@ -4,6 +4,8 @@ const fr = {
     back: 'Retour',
     cancel: 'Annuler',
     error: 'Erreur',
+    copy: 'Copier',
+    copied: 'Copié',
   },
   tabs: { scanner: 'Scanner', collection: 'Ma collection', settings: 'Réglages' },
   home: {
@@ -14,6 +16,18 @@ const fr = {
     noPhoto: 'Aucune photo choisie',
     tipsTitle: 'Pour une bonne photo',
     tips: ['Posez la pièce sur un fond uni et sombre', 'Bonne lumière, sans reflet', 'La pièce bien au centre du cercle'],
+  },
+  pick: {
+    title: 'Choisir les photos',
+    intro: 'Choisissez une photo de chaque côté de la pièce.',
+    front: 'Face (avers)',
+    frontHint: 'Le côté avec le portrait ou le motif principal',
+    back: 'Pile (revers)',
+    backHint: 'Le côté avec la valeur — facultatif mais recommandé',
+    choose: 'Choisir',
+    change: 'Changer',
+    remove: 'Retirer',
+    analyze: 'Estimer la pièce',
   },
   scan: {
     permission: 'Avers a besoin de l’appareil photo pour photographier vos pièces.',
@@ -45,7 +59,10 @@ const fr = {
     analyzingHint: 'Identification, recherche des prix et cours du métal. Cela prend environ 30 secondes.',
     retry: 'Réessayer',
     retake: 'Reprendre les photos',
-    notCoin: 'Je ne vois pas de pièce sur cette photo.',
+    notCoin: 'Ce n’est pas une pièce de monnaie',
+    unidentifiable: 'Je ne sais pas identifier cette pièce',
+    unidentifiableHint: 'Plutôt que de deviner, Avers préfère ne rien affirmer. Reprenez les deux faces bien nettes, de face, avec une bonne lumière.',
+    unidentifiableFallback: 'Les détails visibles ne suffisent pas pour une identification fiable.',
     add: 'Ajouter à ma collection',
     scanAnother: 'Scanner une autre pièce',
     disclaimer:
@@ -53,7 +70,10 @@ const fr = {
     noPhoto: 'Aucune photo.',
   },
   estimate: {
+    sameSide: 'Les deux photos montrent le même côté. Photographiez aussi l’autre face pour une estimation plus fiable.',
     attention: 'Attention',
+    copyAll: 'Tout copier',
+    meltShort: 'Valeur du métal',
     alreadyOwned: (n: number) =>
       n > 1
         ? `Vous avez déjà ${n} pièces comme celle-ci dans votre collection.`

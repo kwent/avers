@@ -71,19 +71,30 @@ export default function ResultScreen() {
     );
   }
 
-  if (!est.identification.is_coin) {
+  const coin = est.identification;
+  if (coin.status !== 'identified') {
+    const notCoin = coin.status === 'not_a_coin';
     return (
-      <View style={styles.center}>
-        <Ionicons name="help-circle" size={64} color={colors.warning} />
-        <Text style={styles.message}>{m.result.notCoin}</Text>
+      <ScrollView contentContainerStyle={[styles.container, { flexGrow: 1, justifyContent: 'center' }]}>
+        <Ionicons name={notCoin ? 'close-circle' : 'help-circle'} size={72} color={colors.warning} />
+        <Text style={styles.message} testID="not-identified">
+          {notCoin ? m.result.notCoin : m.result.unidentifiable}
+        </Text>
+        <Text style={styles.reason}>{coin.status_reason || m.result.unidentifiableFallback}</Text>
+        {!notCoin && <Text style={styles.hint}>{m.result.unidentifiableHint}</Text>}
         <Button title={m.result.retake} onPress={() => router.replace('/scan')} />
-      </View>
+        <Button title={m.home.fromLibrary} variant="secondary" onPress={() => router.replace('/pick')} />
+      </ScrollView>
     );
   }
 
+  // The API reorders swapped sides; mirror that for the local photos shown here.
+  const swapped = coin.photo_sides[0] === 'reverse' && coin.photo_sides[1] === 'obverse';
+  const shown = swapped ? [scan.back, scan.front] : [scan.front, scan.back];
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <EstimateView est={est} photos={[scan.front ?? undefined, scan.back ?? undefined]} />
+      <EstimateView est={est} photos={shown.map((p) => p ?? undefined)} />
       <Button
         title={m.result.add}
         icon={<Ionicons name="add-circle" size={28} color="#fff" />}
@@ -102,4 +113,5 @@ const styles = StyleSheet.create({
   center: { flex: 1, padding: 24, gap: 16, justifyContent: 'center', alignItems: 'stretch' },
   message: { fontSize: font.large, fontWeight: '700', color: colors.text, textAlign: 'center' },
   hint: { fontSize: font.small, color: colors.muted, textAlign: 'center', lineHeight: 22 },
+  reason: { fontSize: font.body, color: colors.text, textAlign: 'center', lineHeight: 26 },
 });

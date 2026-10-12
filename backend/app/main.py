@@ -87,17 +87,26 @@ def estimate(
     except RuntimeError as e:
         raise HTTPException(422, str(e)) from e
 
+    names = [name for _, name in photos]
+    photo_warning = None
+    if len(names) == 2 and len(coin.photo_sides) == 2:
+        if coin.photo_sides == ["reverse", "obverse"]:
+            names.reverse()  # the user swapped the sides: show the obverse first
+        elif coin.photo_sides[0] == coin.photo_sides[1] != "unclear":
+            photo_warning = "same_side"
+
     result = {
         "currency": currency,
         "language": language,
-        "photos": {"front": photos[0][1], "back": photos[1][1] if len(photos) > 1 else None},
+        "photos": {"front": names[0], "back": names[1] if len(names) > 1 else None},
+        "photo_warning": photo_warning,
         "identification": coin.model_dump(),
         "melt": None,
         "comparables": [],
         "valuation": None,
     }
-    if not coin.is_coin:
-        return result
+    if coin.status != "identified":
+        return result  # never value something we could not identify
 
     result["already_owned"] = collection.owned_count(collection_db, coin.country_iso, coin.year, coin.denomination)
     result["melt"] = metals.melt_value(coin.metal, coin.weight_g, coin.fineness, currency)

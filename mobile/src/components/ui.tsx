@@ -10,7 +10,9 @@ export function Button({
   loading,
   disabled,
   style,
+  testID,
 }: {
+  testID?: string;
   title: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
@@ -23,6 +25,7 @@ export function Button({
   const fg = primary ? '#fff' : variant === 'danger' ? colors.danger : colors.brassDark;
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={title}
       onPress={onPress}

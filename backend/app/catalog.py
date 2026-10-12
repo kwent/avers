@@ -36,7 +36,7 @@ def _grade_rank(grade: str | None) -> float | None:
 
 
 def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str, limit: int = 15) -> list[dict]:
-    if not coin.is_coin:
+    if coin.status != "identified":
         return []
     where, params = [], []
     if coin.country_iso:
