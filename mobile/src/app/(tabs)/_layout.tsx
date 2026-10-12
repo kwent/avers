@@ -1,8 +1,10 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
+import { useI18n } from '../../i18n';
 import { colors, font } from '../../lib/theme';
 
 export default function TabsLayout() {
+  const { m } = useI18n();
   return (
     <Tabs
       screenOptions={{
@@ -18,22 +20,25 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Scanner',
+          title: m.tabs.scanner,
           headerTitle: 'Avers',
+          tabBarButtonTestID: 'tab-scanner',
           tabBarIcon: ({ color }) => <Ionicons name="camera" size={30} color={color} />,
         }}
       />
       <Tabs.Screen
         name="collection"
         options={{
-          title: 'Ma collection',
+          title: m.tabs.collection,
+          tabBarButtonTestID: 'tab-collection',
           tabBarIcon: ({ color }) => <Ionicons name="albums" size={30} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Réglages',
+          title: m.tabs.settings,
+          tabBarButtonTestID: 'tab-settings',
           tabBarIcon: ({ color }) => <Ionicons name="settings" size={30} color={color} />,
         }}
       />

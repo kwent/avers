@@ -1,0 +1,24 @@
+# Language setting: English UI, then back to French. No Claude call.
+appId: host.exp.Exponent
+name: Language
+tags: [smoke]
+---
+- runFlow: subflows/open-app.yaml
+- tapOn:
+    id: "tab-settings"
+- tapOn:
+    id: "language-en"
+- assertVisible: "LANGUAGE"
+- assertVisible: "Automatic.*"
+- tapOn:
+    id: "tab-scanner"
+- assertVisible: "What is my coin worth?"
+- assertVisible: "Photograph a coin"
+- tapOn:
+    id: "tab-collection"
+- assertVisible: "MY COLLECTION’S VALUE"
+- tapOn:
+    id: "tab-settings"
+- tapOn:
+    id: "language-fr"
+- assertVisible: "LANGUE"

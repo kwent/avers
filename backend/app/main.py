@@ -62,11 +62,17 @@ def spot(currency: str = "EUR"):
 
 
 @app.post("/estimate")
-def estimate(front: UploadFile = File(...), back: UploadFile | None = File(None), currency: str = Form("EUR")):
+def estimate(
+    front: UploadFile = File(...),
+    back: UploadFile | None = File(None),
+    currency: str = Form("EUR"),
+    language: str = Form(identify.DEFAULT_LANGUAGE),
+):
     currency = currency.upper()
+    language = language if language in identify.LANGUAGES else identify.DEFAULT_LANGUAGE
     photos = [_normalize_photo(front)] + ([_normalize_photo(back)] if back else [])
     try:
-        coin = identify.identify([(data, "image/jpeg") for data, _ in photos])
+        coin = identify.identify([(data, "image/jpeg") for data, _ in photos], language)
     except anthropic.APIError as e:
         raise HTTPException(502, f"identification failed: {e}") from e
     except RuntimeError as e:
@@ -74,6 +80,7 @@ def estimate(front: UploadFile = File(...), back: UploadFile | None = File(None)
 
     result = {
         "currency": currency,
+        "language": language,
         "photos": {"front": photos[0][1], "back": photos[1][1] if len(photos) > 1 else None},
         "identification": coin.model_dump(),
         "melt": None,
@@ -87,7 +94,9 @@ def estimate(front: UploadFile = File(...), back: UploadFile | None = File(None)
     result["melt"] = metals.melt_value(coin.metal, coin.weight_g, coin.fineness, currency)
     result["comparables"] = catalog.comparables(catalog_db, coin, currency)
     try:
-        result["valuation"] = identify.valuate(coin, result["melt"], result["comparables"], currency).model_dump()
+        result["valuation"] = identify.valuate(
+            coin, result["melt"], result["comparables"], currency, language
+        ).model_dump()
     except (anthropic.APIError, RuntimeError) as e:
         result["valuation_error"] = str(e)
     return result

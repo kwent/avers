@@ -99,7 +99,16 @@ export type CollectionResponse = {
   totals: { count: number; value_low: number; value_high: number; melt: number };
 };
 
-export class ApiError extends Error {}
+/** kind 'unreachable' = network failure; 'http' carries the server's detail message when it sent one. */
+export class ApiError extends Error {
+  constructor(
+    public kind: 'unreachable' | 'http',
+    public status = 0,
+    detail = '',
+  ) {
+    super(detail);
+  }
+}
 
 async function request<T>(s: Settings, path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { ...(init.headers as Record<string, string>) };
@@ -109,23 +118,24 @@ async function request<T>(s: Settings, path: string, init: RequestInit = {}): Pr
     res = await fetch(`${s.apiUrl}${path}`, { ...init, headers });
   } catch (e) {
     console.warn(`fetch ${path} failed`, e);
-    throw new ApiError('Serveur injoignable. Vérifiez la connexion et l’adresse dans Réglages.');
+    throw new ApiError('unreachable');
   }
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new ApiError(body?.detail ?? `Erreur ${res.status}`);
+    throw new ApiError('http', res.status, typeof body?.detail === 'string' ? body.detail : '');
   }
   return res.json();
 }
 
 export const photoUrl = (s: Settings, name: string | null) => (name ? `${s.apiUrl}/uploads/${name}` : undefined);
 
-export function estimate(s: Settings, front: string, back: string | null): Promise<Estimate> {
+export function estimate(s: Settings, front: string, back: string | null, language: string): Promise<Estimate> {
   // expo/fetch (the global fetch) only takes Blob/File parts, not RN's { uri, name, type } objects
   const form = new FormData();
   form.append('front', new File(front));
   if (back) form.append('back', new File(back));
   form.append('currency', s.currency);
+  form.append('language', language);
   return request(s, '/estimate', { method: 'POST', body: form });
 }
 

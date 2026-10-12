@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Avers",
+    "NSCameraUsageDescription": "Avers uses the camera to photograph your coins.",
+    "NSPhotoLibraryUsageDescription": "Avers accesses your photos to estimate a coin you already photographed."
+  },
+  "android": {
+    "app_name": "Avers"
+  }
+}

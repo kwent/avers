@@ -3,11 +3,14 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card } from '../../components/ui';
+import { useI18n } from '../../i18n';
 import { toUploadJpeg } from '../../lib/images';
 import { resetScan, scan } from '../../lib/scanStore';
 import { colors, font } from '../../lib/theme';
 
 export default function ScannerHome() {
+  const { m } = useI18n();
+
   const fromLibrary = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -16,7 +19,7 @@ export default function ScannerHome() {
       quality: 0.9,
     });
     if (res.canceled) return;
-    if (!res.assets.length) return Alert.alert('Aucune photo choisie');
+    if (!res.assets.length) return Alert.alert(m.home.noPhoto);
     const [front, back] = await Promise.all(res.assets.map((a) => toUploadJpeg(a.uri, a.width, a.height)));
     resetScan();
     scan.front = front;
@@ -30,12 +33,12 @@ export default function ScannerHome() {
         <View style={styles.coin}>
           <Ionicons name="logo-euro" size={72} color={colors.brass} />
         </View>
-        <Text style={styles.title}>Combien vaut ma pièce ?</Text>
-        <Text style={styles.subtitle}>Photographiez la pièce des deux côtés. Avers l’identifie et estime sa valeur.</Text>
+        <Text style={styles.title}>{m.home.title}</Text>
+        <Text style={styles.subtitle}>{m.home.subtitle}</Text>
       </View>
 
       <Button
-        title="Photographier une pièce"
+        title={m.home.takePhoto}
         icon={<Ionicons name="camera" size={28} color="#fff" />}
         onPress={() => {
           resetScan();
@@ -44,17 +47,19 @@ export default function ScannerHome() {
         style={{ minHeight: 72 }}
       />
       <Button
-        title="Choisir dans mes photos"
+        title={m.home.fromLibrary}
         variant="secondary"
         icon={<Ionicons name="images" size={26} color={colors.brassDark} />}
         onPress={fromLibrary}
       />
 
       <Card>
-        <Text style={styles.tipTitle}>Pour une bonne photo</Text>
-        <Text style={styles.tip}>• Posez la pièce sur un fond uni et sombre</Text>
-        <Text style={styles.tip}>• Bonne lumière, sans reflet</Text>
-        <Text style={styles.tip}>• La pièce bien au centre du cercle</Text>
+        <Text style={styles.tipTitle}>{m.home.tipsTitle}</Text>
+        {m.home.tips.map((tip) => (
+          <Text key={tip} style={styles.tip}>
+            • {tip}
+          </Text>
+        ))}
       </Card>
     </ScrollView>
   );

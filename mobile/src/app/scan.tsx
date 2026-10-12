@@ -7,6 +7,7 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '../components/ui';
+import { useI18n } from '../i18n';
 import { scan } from '../lib/scanStore';
 import { colors, font } from '../lib/theme';
 
@@ -14,6 +15,7 @@ const CIRCLE = 0.8; // circle diameter as a fraction of screen width
 const OUTPUT = 1400; // px, square
 
 export default function ScanScreen() {
+  const { m } = useI18n();
   const [permission, requestPermission] = useCameraPermissions();
   const camera = useRef<CameraView>(null);
   const { width: W, height: H } = useWindowDimensions();
@@ -25,9 +27,9 @@ export default function ScanScreen() {
   if (!permission.granted) {
     return (
       <SafeAreaView style={styles.permission}>
-        <Text style={styles.permissionText}>Avers a besoin de l’appareil photo pour photographier vos pièces.</Text>
-        <Button title="Autoriser l’appareil photo" onPress={requestPermission} />
-        <Button title="Annuler" variant="secondary" onPress={() => router.back()} />
+        <Text style={styles.permissionText}>{m.scan.permission}</Text>
+        <Button title={m.scan.allowCamera} onPress={requestPermission} />
+        <Button title={m.common.cancel} variant="secondary" onPress={() => router.back()} />
       </SafeAreaView>
     );
   }
@@ -84,11 +86,11 @@ export default function ScanScreen() {
 
       <SafeAreaView style={styles.overlay} edges={['top', 'bottom']}>
         <View style={styles.topBar}>
-          <Pressable accessibilityLabel="Fermer" onPress={() => router.back()} style={styles.iconButton}>
+          <Pressable accessibilityLabel={m.scan.close} onPress={() => router.back()} style={styles.iconButton}>
             <Ionicons name="close" size={34} color="#fff" />
           </Pressable>
           <Pressable
-            accessibilityLabel={torch ? 'Éteindre la lampe' : 'Allumer la lampe'}
+            accessibilityLabel={torch ? m.scan.torchOff : m.scan.torchOn}
             onPress={() => setTorch((t) => !t)}
             style={styles.iconButton}
           >
@@ -97,22 +99,22 @@ export default function ScanScreen() {
         </View>
 
         <View style={styles.instructions}>
-          <Text style={styles.step}>{step === 'front' ? 'Étape 1 sur 2' : 'Étape 2 sur 2'}</Text>
+          <Text style={styles.step}>{m.scan.step(step === 'front' ? 1 : 2)}</Text>
           <Text style={styles.prompt}>
-            {step === 'front' ? 'Photographiez le côté face' : 'Retournez la pièce : côté pile'}
+            {step === 'front' ? m.scan.promptFront : m.scan.promptBack}
           </Text>
-          <Text style={styles.hint}>Placez la pièce dans le cercle</Text>
+          <Text style={styles.hint}>{m.scan.hint}</Text>
         </View>
 
         <View style={styles.bottomBar}>
           <View style={styles.side} />
-          <Pressable accessibilityLabel="Prendre la photo" onPress={capture} style={styles.shutter} disabled={busy}>
+          <Pressable accessibilityLabel={m.scan.shoot} onPress={capture} style={styles.shutter} disabled={busy}>
             {busy ? <ActivityIndicator color={colors.brass} size="large" /> : <View style={styles.shutterInner} />}
           </Pressable>
           <View style={styles.side}>
             {step === 'back' && (
               <Pressable onPress={() => router.replace('/result')} style={styles.skip}>
-                <Text style={styles.skipText}>Passer</Text>
+                <Text style={styles.skipText}>{m.scan.skip}</Text>
               </Pressable>
             )}
           </View>

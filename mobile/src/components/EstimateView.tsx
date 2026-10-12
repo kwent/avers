@@ -1,15 +1,17 @@
 import { Image } from 'expo-image';
 import * as Linking from 'expo-linking';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useI18n } from '../i18n';
 import { Comparable, Estimate } from '../lib/api';
-import { confidenceLabel, GRADES_FR, METALS_FR, money, range, sourceLabel } from '../lib/format';
+import { confidence, gradeName, metalName, money, number, range, sourceLabel } from '../lib/format';
 import { colors, font } from '../lib/theme';
 import { Card, Label, Pill, Row } from './ui';
 
 export function EstimateView({ est, photos }: { est: Estimate; photos: (string | undefined)[] }) {
+  const { m, locale } = useI18n();
   const coin = est.identification;
   const cur = est.currency;
-  const conf = confidenceLabel(coin.confidence);
+  const conf = confidence(coin.confidence, m);
   const best = new Set(est.valuation?.best_match_ids ?? []);
   const comparables = [...est.comparables].sort((a, b) => Number(best.has(b.id)) - Number(best.has(a.id)));
 
@@ -29,65 +31,66 @@ export function EstimateView({ est, photos }: { est: Estimate; photos: (string |
 
       {!!coin.authenticity_notes && (
         <Card style={{ borderColor: colors.danger, borderWidth: 2 }}>
-          <Text style={[styles.body, { color: colors.danger, fontWeight: '700' }]}>Attention</Text>
+          <Text style={[styles.body, { color: colors.danger, fontWeight: '700' }]}>{m.estimate.attention}</Text>
           <Text style={styles.body}>{coin.authenticity_notes}</Text>
         </Card>
       )}
 
       {!!est.already_owned && (
         <Card style={{ borderColor: colors.warning, borderWidth: 2 }}>
-          <Text style={styles.body}>
-            Vous avez déjà {est.already_owned > 1 ? `${est.already_owned} pièces` : 'une pièce'} comme celle-ci dans votre collection.
-          </Text>
+          <Text style={styles.body}>{m.estimate.alreadyOwned(est.already_owned)}</Text>
         </Card>
       )}
 
       <Card style={{ backgroundColor: colors.brassLight, borderColor: colors.brass }}>
-        <Label>Valeur estimée</Label>
+        <Label>{m.estimate.value}</Label>
         {est.valuation ? (
           <>
-            <Text style={styles.hero}>{range(est.valuation.value_low, est.valuation.value_high, cur)}</Text>
+            <Text style={styles.hero}>{range(est.valuation.value_low, est.valuation.value_high, cur, locale)}</Text>
             {est.valuation.retail_low != null && (
               <Text style={styles.body}>
-                Prix en boutique : {range(est.valuation.retail_low, est.valuation.retail_high, cur)}
+                {m.estimate.shopPrice(range(est.valuation.retail_low, est.valuation.retail_high, cur, locale))}
               </Text>
             )}
             <Text style={styles.explain}>{est.valuation.explanation}</Text>
           </>
         ) : (
-          <Text style={styles.body}>Estimation indisponible pour le moment.</Text>
+          <Text style={styles.body}>{m.estimate.unavailable}</Text>
         )}
       </Card>
 
       {est.melt && (
         <Card>
-          <Label>Valeur du métal (minimum)</Label>
-          <Text style={styles.big}>{money(est.melt.value, cur, 2)}</Text>
+          <Label>{m.estimate.melt}</Label>
+          <Text style={styles.big}>{money(est.melt.value, cur, locale, 2)}</Text>
           <Text style={styles.explain}>
-            {est.melt.pure_metal_g.toLocaleString('fr-FR')} g de {METALS_FR[est.melt.metal]?.toLowerCase()} pur ×{' '}
-            {money(est.melt.spot_per_gram, cur, 2)}/g, cours du jour.
+            {m.estimate.meltExplain(
+              number(est.melt.pure_metal_g, locale),
+              metalName(est.melt.metal, m),
+              money(est.melt.spot_per_gram, cur, locale, 2),
+            )}
           </Text>
         </Card>
       )}
 
       <Card>
-        <Label>Détails</Label>
-        <Row label="Pays" value={coin.country_name ?? '—'} />
-        <Row label="Année" value={coin.year ?? '—'} />
-        {!!coin.mint_mark && <Row label="Atelier" value={coin.mint_mark} />}
-        <Row label="Valeur faciale" value={coin.denomination ?? '—'} />
-        <Row label="Métal" value={METALS_FR[coin.metal] ?? coin.metal} />
-        {coin.fineness != null && <Row label="Titre" value={`${Math.round(coin.fineness * 1000)} ‰`} />}
-        {coin.weight_g != null && <Row label="Poids" value={`${coin.weight_g.toLocaleString('fr-FR')} g`} />}
-        {coin.catalog_refs.length > 0 && <Row label="Références" value={coin.catalog_refs.join(', ')} />}
-        <Row label="État estimé" value={GRADES_FR[coin.grade] ?? coin.grade} />
+        <Label>{m.estimate.details}</Label>
+        <Row label={m.estimate.country} value={coin.country_name ?? '—'} />
+        <Row label={m.estimate.year} value={coin.year ?? '—'} />
+        {!!coin.mint_mark && <Row label={m.estimate.mint} value={coin.mint_mark} />}
+        <Row label={m.estimate.faceValue} value={coin.denomination ?? '—'} />
+        <Row label={m.estimate.metal} value={metalName(coin.metal, m)} />
+        {coin.fineness != null && <Row label={m.estimate.fineness} value={`${Math.round(coin.fineness * 1000)} ‰`} />}
+        {coin.weight_g != null && <Row label={m.estimate.weight} value={`${number(coin.weight_g, locale)} g`} />}
+        {coin.catalog_refs.length > 0 && <Row label={m.estimate.refs} value={coin.catalog_refs.join(', ')} />}
+        <Row label={m.estimate.grade} value={gradeName(coin.grade, m)} />
         {!!coin.grade_notes && <Text style={styles.explain}>{coin.grade_notes}</Text>}
         {!!coin.notes && <Text style={styles.explain}>{coin.notes}</Text>}
       </Card>
 
       {comparables.length > 0 && (
         <View style={{ gap: 10 }}>
-          <Label>Pièces comparables chez les marchands</Label>
+          <Label>{m.estimate.comparables}</Label>
           {comparables.slice(0, 8).map((c) => (
             <ComparableRow key={c.id} c={c} highlighted={best.has(c.id)} />
           ))}
@@ -98,6 +101,7 @@ export function EstimateView({ est, photos }: { est: Estimate; photos: (string |
 }
 
 function ComparableRow({ c, highlighted }: { c: Comparable; highlighted: boolean }) {
+  const { m, locale } = useI18n();
   return (
     <Pressable onPress={() => Linking.openURL(c.url)} accessibilityRole="link">
       <Card style={[styles.comp, highlighted && { borderColor: colors.brass, borderWidth: 2 }]}>
@@ -111,9 +115,10 @@ function ComparableRow({ c, highlighted }: { c: Comparable; highlighted: boolean
             {c.name}
           </Text>
           <Text style={styles.compMeta}>
-            {c.grade ?? '—'} · {c.in_stock ? 'En vente' : `Vendu (${c.listed.slice(0, 4)})`} · {sourceLabel(c.source)}
+            {c.grade ?? '—'} · {c.in_stock ? m.estimate.inStock : m.estimate.sold(c.listed.slice(0, 4))} ·{' '}
+            {sourceLabel(c.source)}
           </Text>
-          <Text style={styles.compPrice}>{money(c.price, c.currency)}</Text>
+          <Text style={styles.compPrice}>{money(c.price, c.currency, locale)}</Text>
         </View>
       </Card>
     </Pressable>

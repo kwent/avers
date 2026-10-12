@@ -7,11 +7,14 @@ tags: [smoke]
 - assertVisible: "Photographier une pièce"
 - assertVisible: "Choisir dans mes photos"
 
-- tapOn: "Ma collection, tab, 2 of 3"
+- tapOn:
+    id: "tab-collection"
 - assertVisible: "VALEUR DE MA COLLECTION"
 
-- tapOn: "Réglages, tab, 3 of 3"
-- tapOn: "EUR"
+- tapOn:
+    id: "tab-settings"
+- tapOn:
+    id: "currency-EUR"
 - tapOn: "Enregistrer et tester"
 - extendedWaitUntil:
     visible: "Connecté ✓.*"

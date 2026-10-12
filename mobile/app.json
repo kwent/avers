@@ -8,7 +8,10 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.kwent.avers"
+      "bundleIdentifier": "com.kwent.avers",
+      "infoPlist": {
+        "CFBundleAllowMixedLocalizations": true
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -30,19 +33,24 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Avers utilise l’appareil photo pour photographier vos pièces."
+          "cameraPermission": "Avers uses the camera to photograph your coins."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Avers accède à vos photos pour estimer une pièce déjà photographiée."
+          "photosPermission": "Avers accesses your photos to estimate a coin you already photographed."
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "scheme": "avers",
     "experiments": {
       "typedRoutes": true
+    },
+    "locales": {
+      "fr": "./locales/fr.json",
+      "en": "./locales/en.json"
     }
   }
 }

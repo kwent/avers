@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Avers",
+    "NSCameraUsageDescription": "Avers utilise l’appareil photo pour photographier vos pièces.",
+    "NSPhotoLibraryUsageDescription": "Avers accède à vos photos pour estimer une pièce déjà photographiée."
+  },
+  "android": {
+    "app_name": "Avers"
+  }
+}

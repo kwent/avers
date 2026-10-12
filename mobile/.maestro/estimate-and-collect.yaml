@@ -38,7 +38,8 @@ tags: [e2e]
 
 # Collection totals
 - tapOn: "Retour"
-- tapOn: "Ma collection, tab, 2 of 3"
+- tapOn:
+    id: "tab-collection"
 - assertVisible: "VALEUR DE MA COLLECTION"
 - assertVisible: "2 pièces.*"
 - assertVisible: "2 × .*10 Francs.*"

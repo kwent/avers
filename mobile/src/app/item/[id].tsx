@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { EstimateView } from '../../components/EstimateView';
 import { Button, Card, Label } from '../../components/ui';
+import { errorText, useI18n } from '../../i18n';
 import { deleteItem, getItem, Item, patchItem, photoUrl } from '../../lib/api';
 import { range } from '../../lib/format';
 import { useSettings } from '../../lib/settings';
@@ -12,6 +13,7 @@ import { colors, font } from '../../lib/theme';
 export default function ItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { settings } = useSettings();
+  const { m, locale } = useI18n();
   const [item, setItem] = useState<Item | null>(null);
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -22,22 +24,22 @@ export default function ItemScreen() {
         setItem(i);
         setNotes(i.notes ?? '');
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(errorText(e, m)));
   }, [id, settings]);
 
   const update = async (patch: Partial<Item>) => {
     try {
       setItem(await patchItem(settings, Number(id), patch));
-    } catch (e: any) {
-      Alert.alert('Erreur', e.message);
+    } catch (e) {
+      Alert.alert(m.common.error, errorText(e, m));
     }
   };
 
   const remove = () =>
-    Alert.alert('Retirer cette pièce ?', 'Elle sera supprimée de votre collection.', [
-      { text: 'Annuler', style: 'cancel' },
+    Alert.alert(m.item.removeTitle, m.item.removeBody, [
+      { text: m.common.cancel, style: 'cancel' },
       {
-        text: 'Retirer',
+        text: m.item.removeConfirm,
         style: 'destructive',
         onPress: async () => {
           await deleteItem(settings, Number(id));
@@ -52,12 +54,12 @@ export default function ItemScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Card style={{ backgroundColor: colors.brassLight, borderColor: colors.brass }}>
-        <Label>Dans ma collection</Label>
+        <Label>{m.item.inCollection}</Label>
         <View style={styles.qtyRow}>
-          <Text style={styles.body}>Quantité</Text>
+          <Text style={styles.body}>{m.item.quantity}</Text>
           <View style={styles.stepper}>
             <Pressable
-              accessibilityLabel="Moins"
+              accessibilityLabel={m.item.less}
               style={styles.stepButton}
               onPress={() => item.quantity > 1 && update({ quantity: item.quantity - 1 })}
             >
@@ -65,7 +67,7 @@ export default function ItemScreen() {
             </Pressable>
             <Text style={styles.qty}>{item.quantity}</Text>
             <Pressable
-              accessibilityLabel="Plus"
+              accessibilityLabel={m.item.more}
               style={styles.stepButton}
               onPress={() => update({ quantity: item.quantity + 1 })}
             >
@@ -75,12 +77,19 @@ export default function ItemScreen() {
         </View>
         {item.quantity > 1 && (
           <Text style={styles.body}>
-            Total : {range((item.value_low ?? 0) * item.quantity, (item.value_high ?? 0) * item.quantity, item.value_currency)}
+            {m.item.total(
+              range(
+                (item.value_low ?? 0) * item.quantity,
+                (item.value_high ?? 0) * item.quantity,
+                item.value_currency,
+                locale,
+              ),
+            )}
           </Text>
         )}
         <TextInput
           style={styles.notes}
-          placeholder="Notes (provenance, prix d’achat…)"
+          placeholder={m.item.notes}
           placeholderTextColor={colors.muted}
           multiline
           value={notes}
@@ -98,7 +107,7 @@ export default function ItemScreen() {
         <Text style={styles.title}>{item.title}</Text>
       )}
 
-      <Button title="Retirer de ma collection" variant="danger" onPress={remove} />
+      <Button title={m.item.remove} variant="danger" onPress={remove} />
     </ScrollView>
   );
 }

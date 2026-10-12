@@ -32,9 +32,9 @@ Grade = Literal["B", "TB", "TTB", "SUP", "SPL", "FDC", "unknown"]
 
 class CoinIdentification(BaseModel):
     is_coin: bool = Field(description="False if the photo does not show a coin")
-    title: str = Field(description="Short French display name, e.g. '10 Francs Cérès 1851 A'")
+    title: str = Field(description="Short display name, e.g. '10 Francs Cérès 1851 A'")
     country_iso: str | None = Field(description="ISO 3166-1 alpha-2 of the issuing country, e.g. FR, IT, CH")
-    country_name: str | None = Field(description="Country name in French")
+    country_name: str | None = Field(description="Country name")
     year: int | None
     mint_mark: str | None = Field(description="Mint mark letter/symbol, e.g. 'A' (Paris)")
     face_value: float | None = Field(description="Numeric face value, e.g. 10 for 10 Francs")
@@ -46,11 +46,11 @@ class CoinIdentification(BaseModel):
     catalog_refs: list[str] = Field(
         description="Known references, e.g. ['G. 1012', 'KM 770']; Gadoury refs as 'G. <n>'"
     )
-    grade: Grade = Field(description="Estimated condition on the French scale")
-    grade_notes: str = Field(description="One French sentence explaining the grade")
+    grade: Grade = Field(description="Estimated condition on the French scale (codes kept as-is in every language)")
+    grade_notes: str = Field(description="One sentence explaining the grade")
     confidence: float = Field(description="0-1 confidence in the identification")
-    authenticity_notes: str | None = Field(description="French note if it may be a copy/replica/fantasy, else null")
-    notes: str = Field(description="Short French notes useful to a collector (variety, rarity)")
+    authenticity_notes: str | None = Field(description="Note if it may be a copy/replica/fantasy, else null")
+    notes: str = Field(description="Short notes useful to a collector (variety, rarity)")
 
 
 class Valuation(BaseModel):
@@ -59,17 +59,21 @@ class Valuation(BaseModel):
     retail_low: float | None = Field(description="Typical dealer asking price, low")
     retail_high: float | None
     best_match_ids: list[int] = Field(description="Catalog ids of the comparables that are the same coin type")
-    explanation: str = Field(description="2-4 short French sentences explaining the estimate")
+    explanation: str = Field(description="2-4 short sentences explaining the estimate")
 
 
-IDENTIFY_PROMPT = """You are an expert numismatist helping a French collector identify a coin from photos.
+# UI languages supported by the app -> language name used in prompts
+LANGUAGES = {"fr": "French", "en": "English"}
+DEFAULT_LANGUAGE = "fr"
+
+IDENTIFY_PROMPT = """You are an expert numismatist helping a collector identify a coin from photos.
 Identify the coin as precisely as the photos allow: country, year, mint mark, denomination, type, metal,
 standard weight and fineness, and catalog references (Gadoury 'G. <n>' for French coins when known, KM).
 Estimate the grade on the French scale (B, TB, TTB, SUP, SPL, FDC) from visible wear and surface.
 If something is not readable, say so in notes and lower confidence rather than guessing.
-All free-text fields are in French."""
+Write every free-text field (title, country_name, denomination, type_name, notes) in {language}."""
 
-VALUATION_PROMPT = """You are an expert numismatist. Estimate the value of this coin for a French collector.
+VALUATION_PROMPT = """You are an expert numismatist. Estimate the value of this coin for a private collector.
 
 Coin identified from photos:
 {coin}
@@ -84,7 +88,8 @@ Rules:
 - Dealer asking prices are retail; what a private collector can sell for is usually lower.
 - Weigh comparables of the same type, year and grade most; adjust for grade differences.
 - Never estimate below melt value.
-- Values in {currency}."""
+- Values in {currency}.
+- Write the explanation in {language}."""
 
 
 def _image_block(data: bytes, media_type: str) -> dict:
@@ -109,26 +114,37 @@ def _parse(**kwargs):
     return response.parsed_output
 
 
-def identify(images: list[tuple[bytes, str]]) -> CoinIdentification:
+def language_name(code: str) -> str:
+    return LANGUAGES.get(code, LANGUAGES[DEFAULT_LANGUAGE])
+
+
+def identify(images: list[tuple[bytes, str]], language: str = DEFAULT_LANGUAGE) -> CoinIdentification:
     """images: [(bytes, media_type)] — front first, then back."""
     content = []
-    for label, (data, media_type) in zip(["Avers (face)", "Revers (dos)"][: len(images)], images, strict=True):
+    for label, (data, media_type) in zip(["Obverse (front)", "Reverse (back)"][: len(images)], images, strict=True):
         content += [{"type": "text", "text": label}, _image_block(data, media_type)]
     content.append({"type": "text", "text": "Identify this coin."})
     return _parse(
-        system=IDENTIFY_PROMPT,
+        system=IDENTIFY_PROMPT.format(language=language_name(language)),
         output_config={"effort": "medium"},
         messages=[{"role": "user", "content": content}],
         output_format=CoinIdentification,
     )
 
 
-def valuate(coin: CoinIdentification, melt: dict | None, comparables: list[dict], currency: str) -> Valuation:
+def valuate(
+    coin: CoinIdentification,
+    melt: dict | None,
+    comparables: list[dict],
+    currency: str,
+    language: str = DEFAULT_LANGUAGE,
+) -> Valuation:
     prompt = VALUATION_PROMPT.format(
         coin=coin.model_dump_json(indent=1),
         melt=json.dumps(melt) if melt else "n/a (non-precious metal or unknown weight)",
         comparables=json.dumps(comparables, ensure_ascii=False, indent=1) if comparables else "none found",
         currency=currency,
+        language=language_name(language),
     )
     return _parse(
         output_config={"effort": "low"},

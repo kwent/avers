@@ -4,28 +4,30 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { EstimateView } from '../components/EstimateView';
-import { Button, Card } from '../components/ui';
-import { addItem, estimate, Estimate } from '../lib/api';
+import { Button } from '../components/ui';
+import { errorText, useI18n } from '../i18n';
+import { addItem, Estimate, estimate } from '../lib/api';
 import { resetScan, scan } from '../lib/scanStore';
 import { useSettings } from '../lib/settings';
 import { colors, font } from '../lib/theme';
 
 export default function ResultScreen() {
   const { settings } = useSettings();
+  const { m, language } = useI18n();
   const [est, setEst] = useState<Estimate | null>(scan.estimate);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const run = () => {
-    if (!scan.front) return setError('Aucune photo.');
+    if (!scan.front) return setError(m.result.noPhoto);
     setError(null);
-    estimate(settings, scan.front, scan.back)
+    estimate(settings, scan.front, scan.back, language)
       .then((e) => {
         scan.estimate = e;
         setEst(e);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(errorText(e, m)));
   };
 
   useEffect(() => {
@@ -41,8 +43,8 @@ export default function ResultScreen() {
       resetScan();
       router.dismissAll();
       router.push({ pathname: '/item/[id]', params: { id: String(item.id) } });
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e) {
+      setError(errorText(e, m));
     } finally {
       setSaving(false);
     }
@@ -53,8 +55,8 @@ export default function ResultScreen() {
       <View style={styles.center}>
         <Ionicons name="alert-circle" size={64} color={colors.danger} />
         <Text style={styles.message}>{error}</Text>
-        <Button title="Réessayer" onPress={run} />
-        <Button title="Reprendre les photos" variant="secondary" onPress={() => router.replace('/scan')} />
+        <Button title={m.result.retry} onPress={run} />
+        <Button title={m.result.retake} variant="secondary" onPress={() => router.replace('/scan')} />
       </View>
     );
   }
@@ -63,8 +65,8 @@ export default function ResultScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.brass} />
-        <Text style={styles.message}>Analyse de la pièce…</Text>
-        <Text style={styles.hint}>Identification, recherche des prix et cours du métal. Cela prend environ 30 secondes.</Text>
+        <Text style={styles.message}>{m.result.analyzing}</Text>
+        <Text style={styles.hint}>{m.result.analyzingHint}</Text>
       </View>
     );
   }
@@ -73,8 +75,8 @@ export default function ResultScreen() {
     return (
       <View style={styles.center}>
         <Ionicons name="help-circle" size={64} color={colors.warning} />
-        <Text style={styles.message}>Je ne vois pas de pièce sur cette photo.</Text>
-        <Button title="Reprendre les photos" onPress={() => router.replace('/scan')} />
+        <Text style={styles.message}>{m.result.notCoin}</Text>
+        <Button title={m.result.retake} onPress={() => router.replace('/scan')} />
       </View>
     );
   }
@@ -83,19 +85,14 @@ export default function ResultScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <EstimateView est={est} photos={[scan.front ?? undefined, scan.back ?? undefined]} />
       <Button
-        title="Ajouter à ma collection"
+        title={m.result.add}
         icon={<Ionicons name="add-circle" size={28} color="#fff" />}
         onPress={save}
         loading={saving}
         style={{ minHeight: 72 }}
       />
-      <Button title="Scanner une autre pièce" variant="secondary" onPress={() => router.replace('/scan')} />
-      <Card style={{ backgroundColor: 'transparent', borderWidth: 0, padding: 0 }}>
-        <Text style={styles.hint}>
-          Estimation indicative basée sur des prix de marchands et le cours du métal. Pour une vente, faites expertiser la
-          pièce.
-        </Text>
-      </Card>
+      <Button title={m.result.scanAnother} variant="secondary" onPress={() => router.replace('/scan')} />
+      <Text style={styles.hint}>{m.result.disclaimer}</Text>
     </ScrollView>
   );
 }

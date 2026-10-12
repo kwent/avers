@@ -4,20 +4,18 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Button, Card, Label } from '../../components/ui';
+import { errorText, useI18n } from '../../i18n';
 import { CollectionResponse, getCollection, Item, photoUrl } from '../../lib/api';
-import { money, range } from '../../lib/format';
+import { gradeName, money, range } from '../../lib/format';
 import { useSettings } from '../../lib/settings';
 import { colors, font } from '../../lib/theme';
 
 type Sort = 'value' | 'year' | 'recent';
-const SORTS: { key: Sort; label: string }[] = [
-  { key: 'value', label: 'Valeur' },
-  { key: 'year', label: 'Année' },
-  { key: 'recent', label: 'Récent' },
-];
+const SORTS: Sort[] = ['value', 'year', 'recent'];
 
 export default function CollectionScreen() {
   const { settings } = useSettings();
+  const { m, locale } = useI18n();
   const [data, setData] = useState<CollectionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -30,9 +28,9 @@ export default function CollectionScreen() {
         setData(d);
         setError(null);
       })
-      .catch((e) => setError(e.message))
+      .catch((e) => setError(errorText(e, m)))
       .finally(() => setLoading(false));
-  }, [settings]);
+  }, [settings, m]);
 
   useFocusEffect(load);
 
@@ -61,23 +59,19 @@ export default function CollectionScreen() {
           )}
           {data && (
             <Card style={{ backgroundColor: colors.brassLight, borderColor: colors.brass }}>
-              <Label>Valeur de ma collection</Label>
-              <Text style={styles.hero}>{range(data.totals.value_low, data.totals.value_high, cur)}</Text>
+              <Label>{m.collection.total}</Label>
+              <Text style={styles.hero}>{range(data.totals.value_low, data.totals.value_high, cur, locale)}</Text>
               <Text style={styles.body}>
-                {data.totals.count} pièce{data.totals.count > 1 ? 's' : ''} · métal : {money(data.totals.melt, cur)}
+                {m.collection.summary(data.totals.count, money(data.totals.melt, cur, locale))}
               </Text>
             </Card>
           )}
           {items.length > 1 && (
             <View style={styles.sorts}>
-              <Text style={styles.sortLabel}>Trier :</Text>
-              {SORTS.map((s) => (
-                <Pressable
-                  key={s.key}
-                  onPress={() => setSort(s.key)}
-                  style={[styles.sort, sort === s.key && styles.sortActive]}
-                >
-                  <Text style={[styles.sortText, sort === s.key && { color: '#fff' }]}>{s.label}</Text>
+              <Text style={styles.sortLabel}>{m.collection.sortBy}</Text>
+              {SORTS.map((key) => (
+                <Pressable key={key} onPress={() => setSort(key)} style={[styles.sort, sort === key && styles.sortActive]}>
+                  <Text style={[styles.sortText, sort === key && { color: '#fff' }]}>{m.collection.sort[key]}</Text>
                 </Pressable>
               ))}
             </View>
@@ -88,8 +82,8 @@ export default function CollectionScreen() {
         data ? (
           <View style={styles.empty}>
             <Ionicons name="albums-outline" size={72} color={colors.muted} />
-            <Text style={styles.emptyText}>Votre collection est vide.</Text>
-            <Button title="Scanner ma première pièce" onPress={() => router.push('/scan')} />
+            <Text style={styles.emptyText}>{m.collection.empty}</Text>
+            <Button title={m.collection.scanFirst} onPress={() => router.push('/scan')} />
           </View>
         ) : null
       }
@@ -102,8 +96,8 @@ export default function CollectionScreen() {
                 {item.quantity > 1 ? `${item.quantity} × ` : ''}
                 {item.title}
               </Text>
-              <Text style={styles.itemMeta}>{item.grade ?? ''}</Text>
-              <Text style={styles.itemValue}>{range(item.value_low, item.value_high, cur)}</Text>
+              <Text style={styles.itemMeta}>{item.grade ? gradeName(item.grade, m) : ''}</Text>
+              <Text style={styles.itemValue}>{range(item.value_low, item.value_high, cur, locale)}</Text>
             </View>
             <Ionicons name="chevron-forward" size={28} color={colors.muted} />
           </Card>

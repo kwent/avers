@@ -1,4 +1,4 @@
-# Opens Avers in Expo Go on the Scanner tab.
+# Opens Avers in Expo Go, switches the UI to French (flows assert French copy) and lands on the Scanner tab.
 appId: host.exp.Exponent
 ---
 - openLink: exp://127.0.0.1:8081
@@ -11,13 +11,20 @@ appId: host.exp.Exponent
 - repeat: # back out of any screen a previous run stopped on
     times: 4
     while:
-      notVisible: "Scanner, tab, 1 of 3"
+      notVisible:
+        id: "tab-scanner"
     commands:
       - tapOn:
-          text: "Retour"
+          text: "Retour|Back"
           optional: true
 - extendedWaitUntil:
-    visible: "Scanner, tab, 1 of 3"
+    visible:
+      id: "tab-scanner"
     timeout: 60000
-- tapOn: "Scanner, tab, 1 of 3"
+- tapOn:
+    id: "tab-settings"
+- tapOn:
+    id: "language-fr"
+- tapOn:
+    id: "tab-scanner"
 - assertVisible: "Combien vaut ma pièce ?"
