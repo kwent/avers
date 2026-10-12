@@ -13,7 +13,7 @@ import re
 import sqlite3
 import time
 
-from app import catalog, collection, identify, matching, metals, pricing
+from app import catalog, collection, identify, matching, metals, numista, pricing
 
 log = logging.getLogger(__name__)
 
@@ -36,6 +36,22 @@ def _apply_catalog_facts(coin: identify.CoinIdentification, row: sqlite3.Row) ->
     if listed:  # the listing's Gadoury numbers replace whatever the reading claimed
         others = [r for r in coin.catalog_refs if not matching.gadoury_refs([r])]
         coin.catalog_refs = [f"G. {ref}" for ref in sorted(listed)] + others
+
+
+def _year_check(catalog_db: sqlite3.Connection, coin: identify.CoinIdentification, ref: dict | None) -> dict | None:
+    """Ask the user which year the coin shows when the year read may be wrong. Numista lists the years its type was
+    really struck: a year it knows is not questioned. Suggestions pool Numista's years and the catalog's, a commonly
+    misread digit away first, then the nearest struck years."""
+    numista_years = ref["years"] if ref else []
+    if coin.year in numista_years:
+        return None
+    pool = set(numista_years) | set(matching.year_suggestions(catalog_db, coin))
+    confusable = sorted(
+        (y for y in pool if matching.misread_rank(coin.year, y) is not None),
+        key=lambda y: matching.misread_rank(coin.year, y),
+    )
+    nearest = sorted((y for y in pool if y not in confusable), key=lambda y: abs(y - coin.year))
+    return {"read": coin.year, "suggestions": (confusable + nearest)[:3]}
 
 
 def run(
@@ -113,6 +129,7 @@ def price(
         "price_table": [],
         "valuation": None,
         "year_check": None,
+        "numista": None,
     }
     if coin.status != "identified":
         return result  # never value something we could not identify
@@ -143,10 +160,29 @@ def price(
     same_ids = {r["id"] for r in same}
     comparables = catalog.comparables(catalog_db, coin, currency)
     result["comparables"] = sorted(comparables, key=lambda c: c["id"] not in same_ids)
-    if not same:
-        if coin.year and not year_confirmed:  # maybe a misread date: let the user say which year the coin shows
-            result["year_check"] = {"read": coin.year, "suggestions": matching.year_suggestions(catalog_db, coin)}
-        return result  # no catalog listing of this exact coin: no price rather than a made-up one
+    if not same:  # no catalog listing of this exact coin: ask Numista, never make a price up
+        lookup = coin
+        if not matching.gadoury_refs(coin.catalog_refs):  # look the type up by the catalog's Gadoury numbers
+            lookup = coin.model_copy(update={"catalog_refs": matching.type_refs(catalog_db, coin)})
+        ref = numista.lookup(store, lookup, currency)
+        result["numista"] = ref
+        if coin.year and not year_confirmed:
+            check = _year_check(catalog_db, coin, ref)
+            result["year_check"] = check
+        else:
+            check = None
+        price = ref and ref["prices"].get(coin.grade)
+        if price and not check:
+            result["valuation"] = {
+                "value_low": price,
+                "value_high": price,
+                "retail_low": None,
+                "retail_high": None,
+                "best_match_ids": [],
+                "source": "numista",
+                "basis": None,
+            }
+        return result
 
     points = []
     for r in same:

@@ -105,6 +105,20 @@ export function CatalogSection({ est }: { est: Estimate }) {
               </View>
             }
           />
+        ) : est.numista ? (
+          <Row
+            testID="numista-link"
+            accessibilityRole="link"
+            onPress={() => Linking.openURL(est.numista!.url)}
+            chevron
+            stacked
+            label={est.numista.title ?? m.estimate.seeNumista}
+            value={
+              <T variant="smallStrong" tone="accent">
+                {m.estimate.seeNumista}
+              </T>
+            }
+          />
         ) : (
           <Row label={m.estimate.noMatch} />
         )}

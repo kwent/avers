@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS photos (
   data BLOB NOT NULL
 );
 CREATE TABLE IF NOT EXISTS daily_usage (day TEXT PRIMARY KEY, estimates INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS api_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, n INTEGER NOT NULL);
 """
 
 POSTGRES_SCHEMA = f"""
@@ -63,6 +65,8 @@ CREATE TABLE IF NOT EXISTS photos (
   data BYTEA NOT NULL
 );
 CREATE TABLE IF NOT EXISTS daily_usage (day TEXT PRIMARY KEY, estimates INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS api_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, n INTEGER NOT NULL);
 """
 
 EDITABLE = {
@@ -190,6 +194,29 @@ class Store:
         return int(rows[0]["n"])
 
     # --- usage
+
+    def cached(self, key: str, max_age: timedelta) -> str | None:
+        """A cached external API answer, if fetched within `max_age`."""
+        cutoff = (datetime.now(UTC) - max_age).strftime("%Y-%m-%d %H:%M:%S")
+        rows = self.query("SELECT data FROM api_cache WHERE key = ? AND fetched_at >= ?", (key, cutoff))
+        return rows[0]["data"] if rows else None
+
+    def cache(self, key: str, data: str) -> None:
+        now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        self.execute(
+            "INSERT INTO api_cache (key, data, fetched_at) VALUES (?, ?, ?)"
+            " ON CONFLICT (key) DO UPDATE SET data = excluded.data, fetched_at = excluded.fetched_at",
+            (key, data, now),
+        )
+
+    def bump(self, name: str) -> int:
+        """Increment a named counter; returns its new value."""
+        rows = self.query(
+            "INSERT INTO counters (name, n) VALUES (?, 1)"
+            " ON CONFLICT (name) DO UPDATE SET n = counters.n + 1 RETURNING n",
+            (name,),
+        )
+        return int(rows[0]["n"])
 
     def count_estimate(self) -> int:
         """Record one estimate for today (UTC); returns today's total including this one."""

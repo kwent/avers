@@ -42,6 +42,11 @@ function detailFields(est: Estimate, m: Messages, locale: string): Field[] {
     },
     { id: 'refs', label: m.estimate.refs, value: coin.catalog_refs.join(', ') },
     { id: 'grade', label: m.estimate.grade, value: gradeLabel(coin.grade, m) },
+    est.numista?.issue?.mintage != null && {
+      id: 'mintage',
+      label: m.estimate.mintage,
+      value: number(est.numista.issue.mintage, locale),
+    },
   ];
   return fields.filter((f): f is Field => !!f && !!f.value);
 }
@@ -167,7 +172,7 @@ function EstimateContent({
             <T variant="display" tone="gold" selectable>
               {worth}
             </T>
-            <T tone="soft">{m.estimate.worthSub}</T>
+            <T tone="soft">{v.source === 'numista' ? m.estimate.numistaSub(coin.grade) : m.estimate.worthSub}</T>
             {v.retail_low != null && (
               <T variant="bodyStrong" className="mt-2">
                 {m.estimate.shopPrice(range(v.retail_low, v.retail_high, cur, locale))}
@@ -195,7 +200,9 @@ function EstimateContent({
 
         {children}
 
-        {v && (
+        {v?.source === 'numista' && <Notice>{m.estimate.numistaWhy}</Notice>}
+
+        {v && v.source !== 'numista' && (
           <PriceTable
             rows={est.price_table ?? []}
             grade={coin.grade}

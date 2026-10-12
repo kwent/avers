@@ -126,6 +126,11 @@ const en: Messages = {
     yearKeep: (year) => `Yes, it is ${year}`,
     yearOther: 'Other year',
     yearCheck: 'Year to check',
+    numistaSub: (grade) => `Numista indicative price for grade ${grade}`,
+    numistaWhy:
+      'No listing of this coin in our catalog: this price is Numista’s estimate, a collectors’ database. Check it with a dealer.',
+    seeNumista: 'See on Numista',
+    mintage: 'Mintage',
     noPrice: 'Exact price unknown: too few sales of this coin in the catalog to estimate it.',
     unknownPrice: 'Price unknown',
     worthAtLeast: 'It is worth at least',

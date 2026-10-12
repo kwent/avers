@@ -61,6 +61,8 @@ export type Valuation = {
   retail_low: number | null;
   retail_high: number | null;
   best_match_ids: number[];
+  /** 'numista': no catalog listing, the price is Numista's estimate for the grade */
+  source?: 'numista';
   // explanation text from older saved estimates; new ones carry `basis` and the app writes the text
   explanation?: string;
   basis?: { listings: number; first_year: number | null; last_year: number | null; metal_share: number | null };
@@ -92,6 +94,14 @@ export type Estimate = {
   valuation: Valuation | null;
   valuation_error?: string;
   already_owned?: number;
+  /** what Numista knows, looked up when the catalog has no listing of this coin */
+  numista?: {
+    type_id: number;
+    title: string | null;
+    url: string;
+    years: number[];
+    issue: { id: number; mintage: number | null; mint: string | null } | null;
+  } | null;
   /** set when the year read has no catalog listing: the app asks which year the coin shows */
   year_check?: { read: number; suggestions: number[] } | null;
 };
