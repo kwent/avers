@@ -26,8 +26,8 @@ MAX_ESTIMATES_PER_DAY = int(os.environ.get("MAX_ESTIMATES_PER_DAY", "100"))
 
 
 def check_token(request: Request, x_app_token: str | None = Header(default=None)):
-    if request.method == "OPTIONS" or request.url.path.startswith("/uploads/"):
-        return  # image views cannot send headers; photo names are random
+    if request.method == "OPTIONS" or request.url.path == "/health" or request.url.path.startswith("/uploads/"):
+        return  # health checks; image views cannot send headers (photo names are random)
     if APP_TOKEN and not (x_app_token and secrets.compare_digest(x_app_token, APP_TOKEN)):
         raise HTTPException(401, "invalid token")
 

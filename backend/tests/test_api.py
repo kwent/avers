@@ -75,8 +75,9 @@ def test_estimate_rejects_non_image():
 
 def test_token_required_when_configured(monkeypatch):
     monkeypatch.setattr(main, "APP_TOKEN", "secret")
-    assert client.get("/health").status_code == 401
-    assert client.get("/health", headers={"X-App-Token": "secret"}).status_code == 200
+    assert client.get("/collection").status_code == 401
+    assert client.get("/collection", headers={"X-App-Token": "secret"}).status_code == 200
+    assert client.get("/health").status_code == 200  # uptime checks need no secret
 
 
 @pytest.mark.parametrize("sent,used", [("en", "en"), ("fr", "fr"), ("xx", "fr")])
