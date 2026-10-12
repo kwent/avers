@@ -15,7 +15,7 @@ from datetime import UTC, datetime, timedelta
 
 from app.http import SSL_CTX, UA
 from app.identify import CoinIdentification
-from app.matching import gadoury_refs, plain
+from app.listing import gadoury_refs, plain
 
 log = logging.getLogger(__name__)
 

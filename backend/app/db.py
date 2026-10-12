@@ -5,6 +5,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from app import listing
+
 BACKEND = Path(__file__).resolve().parents[1]  # relative paths in the environment are resolved from here
 ROOT = BACKEND.parent  # repository root (local data/ lives there)
 DB_PATH = BACKEND / os.environ.get("COINS_DB", ROOT / "data" / "coins.sqlite")
@@ -32,6 +34,9 @@ CREATE TABLE IF NOT EXISTS coins (
   created TEXT,
   modified TEXT,
   raw JSON,
+  mint TEXT,                        -- parsed from the name (app.listing), NULL until parsed
+  gadoury TEXT,                     -- Gadoury numbers in the name, space-padded (' 1012 1012a ')
+  gadoury_all TEXT,                 -- ... and in the description
   UNIQUE (source, source_id)
 );
 CREATE TABLE IF NOT EXISTS coin_images (
@@ -44,6 +49,7 @@ CREATE TABLE IF NOT EXISTS coin_images (
 CREATE INDEX IF NOT EXISTS idx_coins_lookup ON coins(country_iso, year, face_value);
 CREATE INDEX IF NOT EXISTS idx_coins_metal ON coins(metal);
 """
+PARSED = ("mint", "gadoury", "gadoury_all")
 
 
 # Hosted API: the catalog ships inside the function, on a read-only disk.
@@ -61,11 +67,31 @@ def connect(path: Path = DB_PATH, read_only: bool = READ_ONLY) -> sqlite3.Connec
     db.execute("PRAGMA foreign_keys = ON")
     db.execute("PRAGMA journal_mode = WAL")
     db.executescript(SCHEMA)
+    _parse_listings(db)
     return db
+
+
+def _parse_listings(db: sqlite3.Connection) -> None:
+    """Catalogs made before the parsed columns existed: add them and fill them in (once)."""
+    known = {r[1] for r in db.execute("PRAGMA table_info(coins)")}
+    for column in PARSED:
+        if column not in known:
+            db.execute(f"ALTER TABLE coins ADD COLUMN {column} TEXT")
+    todo = db.execute("SELECT id, name, description FROM coins WHERE gadoury IS NULL").fetchall()
+    for r in todo:
+        f = listing.facts(r["name"], r["description"])
+        db.execute(
+            "UPDATE coins SET mint = ?, gadoury = ?, gadoury_all = ? WHERE id = ?",
+            (f["mint"], f["gadoury"], f["gadoury_all"], r["id"]),
+        )
+    if todo:
+        db.commit()
 
 
 def upsert_coin(db: sqlite3.Connection, coin: dict, images: list[tuple[int, str]]) -> int:
     """Insert or update one coin (keyed on source + source_id) and replace its image list."""
+    if "name" in coin:
+        coin = {**coin, **listing.facts(coin["name"], coin.get("description"))}
     cols = list(coin)
     db.execute(
         f"INSERT INTO coins ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))}) "
@@ -88,6 +114,7 @@ def upsert_coin(db: sqlite3.Connection, coin: dict, images: list[tuple[int, str]
 
 def export_slim(out: Path, src: Path = DB_PATH) -> None:
     """Copy of the catalog for the hosted API: what serving needs (no raw source payloads, no local image paths)."""
+    connect(src).close()  # parse listings stored before the parsed columns existed
     out.parent.mkdir(parents=True, exist_ok=True)
     out.unlink(missing_ok=True)
     db = sqlite3.connect(out)

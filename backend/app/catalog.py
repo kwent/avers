@@ -3,7 +3,8 @@
 import sqlite3
 
 from app.identify import CoinIdentification
-from app.matching import face_values, gadoury_refs, listing_refs
+from app.listing import gadoury_refs, stored_refs
+from app.matching import face_values
 from app.metals import CATALOG_METALS, convert
 from app.pricing import grade_rank
 
@@ -22,8 +23,8 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
         alt.append(f"face_value IN ({', '.join('?' * len(faces))})")
         params += faces
     for n in refs:
-        alt.append("(name LIKE ? OR description LIKE ?)")
-        params += [f"%G. {n} %", f"%G. {n}%"]
+        alt.append("gadoury_all LIKE ?")
+        params.append(f"% {n} %")
     if alt:
         where.append("(" + " OR ".join(alt) + ")")
     if not where:
@@ -34,9 +35,8 @@ def comparables(db: sqlite3.Connection, coin: CoinIdentification, currency: str,
     target_grade = grade_rank(coin.grade) if coin.grade != "unknown" else None
     scored = []
     for r in rows:
-        text = f"{r['name']} {r['description'] or ''}"
         score = 0.0
-        if listing_refs(text) & set(refs):
+        if stored_refs(r["gadoury_all"]) & set(refs):
             score += 4
         if r["face_value"] in faces:
             score += 2

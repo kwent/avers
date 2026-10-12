@@ -26,7 +26,7 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter
 
-from app import identify, matching
+from app import identify, listing, matching
 from app.db import DB_PATH, IMAGES_DIR
 from app.http import get_json
 
@@ -153,7 +153,7 @@ def score(case: dict, coin: identify.CoinIdentification, db: sqlite3.Connection)
     out["country"] = (coin.country_iso or "").upper() == truth["country_iso"]
     out["year"] = coin.year == truth["year"]
     out["face"] = truth["face_value"] in matching.face_values(coin)
-    mint = matching.listing_mint(truth["name"])
+    mint = listing.listing_mint(truth["name"])
     out["mint"] = None if not mint else (coin.mint_mark or "").strip().upper() == mint
     out["candidate"] = False
     if coin.status == "identified":

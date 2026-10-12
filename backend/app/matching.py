@@ -7,10 +7,10 @@ various grades; visual similarity confirms the type and picks the closest listin
 
 import re
 import sqlite3
-import unicodedata
 from dataclasses import dataclass, field
 
 from app.identify import CoinIdentification
+from app.listing import gadoury_refs, plain, stored_refs
 from app.metals import CATALOG_METALS
 
 # Visual similarity (DINOv2, 0-1) needed to accept a match on facts alone, and how far below the best listing
@@ -18,9 +18,6 @@ from app.metals import CATALOG_METALS
 MIN_SIMILARITY = 0.75
 SAME_TYPE_MARGIN = 0.05
 
-# "FRANCE-1851A-10 Francs …", "FRANCE-1717 W-Ecu …", "FRANCE-1854-A-10 FRANCS …", "HONGRIE-1911 KB-10 Korona …"
-LISTING_DATE = re.compile(r"-(\d{4})(?:/\d+)?(?:\s*-?\s*([A-Z]{1,2}))?(?=\s*-)")
-GADOURY_REF = re.compile(r"\bG(?:ad(?:oury)?)?\.?\s*(?:[A-Z]{2}\s*)?(\d+[a-z]?)\b", re.I)  # "G. 1012", "Gad FR 1012"
 LEADING_NUMBER = re.compile(r"^\s*(\d+(?:[.,]\d+)?)")
 
 
@@ -37,25 +34,6 @@ def face_values(coin: CoinIdentification) -> list[float]:
         if n not in out:
             out.append(n)
     return out
-
-
-def listing_mint(name: str) -> str | None:
-    m = LISTING_DATE.search(name or "")
-    return m.group(2) if m else None
-
-
-def gadoury_refs(refs: list[str]) -> set[str]:
-    out = set()
-    for ref in refs:
-        m = GADOURY_REF.match(ref.strip())
-        if m:
-            out.add(m.group(1).lower())
-    return out
-
-
-def listing_refs(name: str | None) -> set[str]:
-    """Gadoury numbers quoted in a listing name, e.g. 'FRANCE-1851A-10 Francs G. 1012 TTBSUP' -> {'1012'}."""
-    return {x.lower() for x in GADOURY_REF.findall(name or "")}
 
 
 @dataclass
@@ -86,12 +64,12 @@ def candidates(db: sqlite3.Connection, coin: CoinIdentification) -> tuple[list[s
         rows = [r for r in rows if not r["metal"] or r["metal"] in metals]
     if coin.mint_mark:
         mint = coin.mint_mark.strip().upper()
-        rows = [r for r in rows if listing_mint(r["name"]) in (None, mint)]
-        if any(listing_mint(r["name"]) == mint for r in rows):
+        rows = [r for r in rows if r["mint"] in (None, mint)]
+        if any(r["mint"] == mint for r in rows):
             criteria.append("mint")
     refs = gadoury_refs(coin.catalog_refs)
     if refs:
-        with_ref = [r for r in rows if listing_refs(r["name"]) & refs]
+        with_ref = [r for r in rows if stored_refs(r["gadoury"]) & refs]
         if with_ref:
             rows = with_ref
             criteria.append("reference")
@@ -120,11 +98,6 @@ def find(db: sqlite3.Connection, coin: CoinIdentification, queries: list, index=
     return Match(row, rows, 0.8, criteria)
 
 
-def plain(text: str | None) -> str:
-    """Lower case without accents, for loose name matching ("CÉRÉS" ~ "Cérès")."""
-    return "".join(c for c in unicodedata.normalize("NFD", (text or "").lower()) if not unicodedata.combining(c))
-
-
 def type_words(coin: CoinIdentification) -> list[str]:
     """Words of the type name ("Cérès", "Napoléon III") to recognise the type in catalog listing names."""
     return [w for w in plain(coin.type_name).split() if len(w) >= 4]
@@ -136,7 +109,7 @@ def type_rows(db: sqlite3.Connection, coin: CoinIdentification) -> list[sqlite3.
     if coin.status != "identified" or not coin.country_iso or not faces:
         return []
     rows = db.execute(
-        "SELECT year, name, metal, price FROM coins"
+        "SELECT year, name, metal, price, gadoury FROM coins"
         f" WHERE country_iso = ? AND face_value IN ({', '.join('?' * len(faces))})",
         [coin.country_iso.upper(), *faces],
     ).fetchall()
@@ -156,6 +129,6 @@ def type_refs(db: sqlite3.Connection, coin: CoinIdentification, limit: int = 3) 
         if not any(w in plain(r["name"]) for w in words):
             continue
         gap = abs((r["year"] or 0) - (coin.year or 0)) if coin.year else 0
-        for ref in listing_refs(r["name"]):
+        for ref in stored_refs(r["gadoury"]):
             ranked[ref] = min(ranked.get(ref, gap), gap)
     return [f"G. {ref}" for ref in sorted(ranked, key=ranked.get)[:limit]]

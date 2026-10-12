@@ -1,6 +1,6 @@
 import pytest
 
-from app import main, matching, years
+from app import listing, main, matching, years
 from tests.test_catalog import make_coin
 
 
@@ -31,8 +31,8 @@ class FakeIndex:
     ],
 )
 def test_listing_parsing(name, mint, refs):
-    assert matching.listing_mint(name) == mint
-    assert matching.listing_refs(name) == refs
+    assert listing.listing_mint(name) == mint
+    assert listing.listing_refs(name) == refs
 
 
 def test_reference_match_without_visual_index(catalog_1851):

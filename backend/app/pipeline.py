@@ -19,6 +19,7 @@ from datetime import date
 import numpy as np
 
 from app import catalog, collection, identify, matching, metals, numista, pricing, visual, years
+from app.listing import gadoury_refs, stored_refs
 
 log = logging.getLogger(__name__)
 
@@ -34,9 +35,9 @@ def _apply_catalog_facts(coin: identify.CoinIdentification, row: sqlite3.Row) ->
         coin.weight_g = row["weight_g"]
     if row["metal"] in metals.METAL_OF_CATALOG:
         coin.metal = metals.METAL_OF_CATALOG[row["metal"]]
-    listed = matching.listing_refs(row["name"])
+    listed = stored_refs(row["gadoury"])
     if listed:  # the listing's Gadoury numbers replace whatever the reading claimed
-        others = [r for r in coin.catalog_refs if not matching.gadoury_refs([r])]
+        others = [r for r in coin.catalog_refs if not gadoury_refs([r])]
         coin.catalog_refs = [f"G. {ref}" for ref in sorted(listed)] + others
 
 
@@ -212,7 +213,7 @@ def price(
     source = "catalog"
     if not same:  # no catalog listing of this exact coin: ask Numista, never make a price up
         lookup = coin
-        if not matching.gadoury_refs(coin.catalog_refs):  # look the type up by the catalog's Gadoury numbers
+        if not gadoury_refs(coin.catalog_refs):  # look the type up by the catalog's Gadoury numbers
             lookup = coin.model_copy(update={"catalog_refs": matching.type_refs(src.catalog_db, coin)})
         ref = numista.lookup(src.store, lookup, currency)
         result["numista"] = ref

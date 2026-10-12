@@ -4,7 +4,8 @@ never struck, the app asks the user which year the coin shows, suggesting the li
 import sqlite3
 
 from app.identify import CoinIdentification
-from app.matching import plain, type_rows, type_words
+from app.listing import plain
+from app.matching import type_rows, type_words
 
 # Digits a worn or blurry date mixes up, most likely first.
 CONFUSABLE_DIGITS = ["56", "38", "68", "08", "06", "17", "35", "69", "09", "47"]
