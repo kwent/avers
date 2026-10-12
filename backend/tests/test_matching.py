@@ -67,3 +67,11 @@ def test_visual_outlier_is_not_counted_as_the_same_type(catalog_1851):
 )
 def test_face_values_cover_sub_units(face, denomination, expected):
     assert matching.face_values(make_coin(face_value=face, denomination=denomination)) == expected
+
+
+@pytest.mark.parametrize(
+    ("read", "year", "rank"),
+    [(1861, 1851, 0), (1861, 1867, 5), (1861, 1871, None), (1861, 1851 + 10, None), (1861, 1751, None)],
+)
+def test_misread_rank(read, year, rank):
+    assert matching._misread_rank(read, year) == rank

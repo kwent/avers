@@ -92,6 +92,8 @@ export type Estimate = {
   valuation: Valuation | null;
   valuation_error?: string;
   already_owned?: number;
+  /** set when the year read has no catalog listing: the app asks which year the coin shows */
+  year_check?: { read: number; suggestions: number[] } | null;
 };
 
 export type Item = {
@@ -119,7 +121,18 @@ export type Item = {
 export type CollectionResponse = {
   currency: string;
   items: Item[];
-  totals: { count: number; value_low: number; value_high: number; melt: number };
+  totals: {
+    count: number;
+    /** priced coins at their value, the others at their metal value */
+    total_low: number;
+    total_high: number;
+    priced_count: number;
+    value_low: number;
+    value_high: number;
+    unpriced_count: number;
+    unpriced_melt: number;
+    melt: number;
+  };
 };
 
 /** kind 'unreachable' = network failure; 'http' carries the server's detail message when it sent one. */
@@ -187,6 +200,14 @@ export async function frameCheck(s: Settings, uri: string): Promise<FrameCheck> 
 export const getCollection = (s: Settings) => request<CollectionResponse>(s, `/collection?currency=${currencyOf(s)}`);
 
 export const getItem = (s: Settings, id: number) => request<Item>(s, `/collection/${id}?currency=${currencyOf(s)}`);
+
+/** Re-price an estimate with the year the user reads on the coin (no new photo reading). */
+export const correctYear = (s: Settings, est: Estimate, year: number) =>
+  request<Estimate>(s, '/estimate/year', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ estimate: est, year }),
+  });
 
 export const addItem = (s: Settings, est: Estimate, quantity = 1) =>
   request<Item>(s, '/collection', {

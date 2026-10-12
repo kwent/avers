@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EstimateView } from '../components/EstimateView';
+import { YearCheck } from '../components/YearCheck';
 import { ActionBar, Button, CoinWell, Notice, T } from '../components/ui';
 import { errorText, useI18n } from '../i18n';
-import { addItem, Estimate, estimate } from '../lib/api';
+import { addItem, correctYear, Estimate, estimate } from '../lib/api';
 import { resetScan, scan } from '../lib/scanStore';
 import { useSettings } from '../lib/settings';
 import { colors } from '../theme';
@@ -38,6 +39,18 @@ export default function ResultScreen() {
   useEffect(() => {
     if (!est) run();
   }, []);
+
+  const setYear = async (year: number) => {
+    if (!est) return;
+    try {
+      const e = await correctYear(settings, est, year);
+      scan.estimate = e;
+      setEst(e);
+      if (e.valuation) success();
+    } catch (e) {
+      setError(errorText(e, m));
+    }
+  };
 
   const save = async () => {
     if (!est) return;
@@ -114,7 +127,11 @@ export default function ResultScreen() {
   return (
     <View className="flex-1">
       <ScrollView contentContainerClassName="pb-6">
-        <EstimateView est={est} photos={shown.map((p) => p ?? undefined)} />
+        <EstimateView est={est} photos={shown.map((p) => p ?? undefined)}>
+          {est.year_check && (
+            <YearCheck read={est.year_check.read} suggestions={est.year_check.suggestions} onYear={setYear} />
+          )}
+        </EstimateView>
         <View className="gap-4 px-gutter">
           <Button
             title={m.result.scanAnother}

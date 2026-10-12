@@ -1,14 +1,37 @@
 import '../../global.css';
 import { Lexend_400Regular, Lexend_600SemiBold, Lexend_700Bold, useFonts } from '@expo-google-fonts/lexend';
-import { Stack } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { Platform, Pressable } from 'react-native';
+import { T } from '../components/ui';
 import { I18nProvider, useI18n } from '../i18n';
 import { SettingsProvider } from '../lib/settings';
 import { colors, fonts, headerTitleStyle } from '../theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+/**
+ * Web: the stack header draws no back button, and the home-screen web app has no browser bar, so add one. Falls back to
+ * the home tab when there is no history (page opened directly).
+ */
+function WebBack({ label }: { label: string }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+      className="min-h-touch flex-row items-center gap-1 px-3"
+    >
+      <Ionicons name="chevron-back" size={26} color={colors.gold} />
+      <T variant="bodyStrong" tone="gold">
+        {label}
+      </T>
+    </Pressable>
+  );
+}
 
 function Navigator() {
   const { m } = useI18n();
@@ -21,6 +44,7 @@ function Navigator() {
         headerShadowVisible: false,
         headerBackTitle: m.common.back,
         contentStyle: { backgroundColor: colors.ground },
+        ...(Platform.OS === 'web' && { headerLeft: () => <WebBack label={m.common.back} /> }),
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

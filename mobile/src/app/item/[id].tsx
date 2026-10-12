@@ -123,7 +123,7 @@ export default function ItemScreen() {
     <ScrollView contentContainerClassName="pb-8" keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
       {item.estimate ? (
         <EstimateView
-          est={{ ...item.estimate, already_owned: 0 }}
+          est={{ ...item.estimate, already_owned: 0, year_check: null }}
           photos={[photoUrl(settings, item.photo_front), photoUrl(settings, item.photo_back)]}
         >
           {collectionSection}

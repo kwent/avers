@@ -174,3 +174,49 @@ def test_daily_estimate_limit(monkeypatch, fake_vision):
     post = lambda: client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")})  # noqa: E731
     assert post().status_code == 200
     assert post().status_code == 429
+
+
+def test_misread_year_asks_the_user_then_reprices(monkeypatch, catalog_1851):
+    """A worn 1851 read as 1861: no listing, so the app is asked to check the year; the user's year re-prices it."""
+    monkeypatch.setattr(
+        identify, "identify", lambda images, language: make_coin(year=1861, title="10 Francs Cérès 1861 A")
+    )
+    est = client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")}).json()
+    assert est["valuation"] is None
+    assert est["year_check"] == {"read": 1861, "suggestions": [1851]}
+
+    fixed = client.post("/estimate/year", json={"estimate": est, "year": 1851})
+    assert fixed.status_code == 200, fixed.text
+    fixed = fixed.json()
+    assert fixed["identification"]["year"] == 1851
+    assert fixed["identification"]["title"] == "10 Francs Cérès 1851 A"
+    assert fixed["valuation"]["retail_low"] == 600
+    assert fixed["photos"] == est["photos"]
+    assert fixed["year_check"] is None
+
+    # a year the user confirms is not asked again, even without a listing
+    kept = client.post("/estimate/year", json={"estimate": est, "year": 1861}).json()
+    assert kept["valuation"] is None and kept["year_check"] is None
+
+
+def test_year_correction_rejects_garbage():
+    assert client.post("/estimate/year", json={"estimate": {}, "year": 1851}).status_code == 422
+
+
+def test_collection_total_counts_unpriced_coins_at_their_metal_value(monkeypatch, catalog_1851):
+    monkeypatch.setattr(identify, "identify", lambda images, language: make_coin())
+    priced = client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")})
+    monkeypatch.setattr(identify, "identify", lambda images, language: make_coin(year=1861))
+    unpriced = client.post("/estimate", files={"front": ("f.jpg", jpeg(), "image/jpeg")}).json()
+    ids = [
+        client.post("/collection", json={"estimate": priced.json()}).json()["id"],
+        client.post("/collection", json={"estimate": unpriced, "quantity": 2}).json()["id"],
+    ]
+    t = client.get("/collection", params={"currency": "EUR"}).json()["totals"]
+    melt = unpriced["melt"]["value"]
+    assert (t["count"], t["priced_count"], t["unpriced_count"]) == (3, 1, 2)
+    assert t["value_low"] == 480
+    assert t["unpriced_melt"] == round(2 * melt, 2)
+    assert t["total_low"] == round(480 + 2 * melt, 2)
+    for i in ids:
+        client.delete(f"/collection/{i}")

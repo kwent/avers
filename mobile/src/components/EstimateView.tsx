@@ -112,12 +112,14 @@ function EstimateContent({
   const conf = confidence(coin.confidence, m);
   const status: { text: string; tone: Tone; color: string; icon: 'checkmark-circle' | 'help-circle' } = est.match
     ? { text: m.estimate.match, tone: 'success', color: colors.success, icon: 'checkmark-circle' }
-    : {
-        text: conf.text,
-        tone: conf.tone,
-        color: colors[conf.tone],
-        icon: conf.tone === 'success' ? 'checkmark-circle' : 'help-circle',
-      };
+    : est.year_check
+      ? { text: m.estimate.yearCheck, tone: 'warning', color: colors.warning, icon: 'help-circle' }
+      : {
+          text: conf.text,
+          tone: conf.tone,
+          color: colors[conf.tone],
+          icon: conf.tone === 'success' ? 'checkmark-circle' : 'help-circle',
+        };
   const worth = v ? range(v.value_low, v.value_high, cur, locale) : '';
 
   return (
@@ -173,7 +175,22 @@ function EstimateContent({
             )}
           </Animated.View>
         ) : (
-          <Notice>{m.estimate.noPrice}</Notice>
+          // No reliable price: say so plainly, and give the one sure figure, the metal value, as a floor.
+          <View className="gap-3">
+            {est.melt ? (
+              <View accessible accessibilityLabel={`${m.estimate.worthAtLeast} ${money(est.melt.value, cur, locale)}`}>
+                <T tone="soft">{m.estimate.worthAtLeast}</T>
+                <T variant="display" tone="gold" selectable>
+                  {money(est.melt.value, cur, locale)}
+                </T>
+                <T tone="soft">{m.estimate.metalFloor(metalName(est.melt.metal, m))}</T>
+              </View>
+            ) : (
+              <T variant="title">{m.estimate.unknownPrice}</T>
+            )}
+            {/* with a year to check, the question (children) explains instead: the price may follow */}
+            {!est.year_check && <Notice>{m.estimate.noPrice}</Notice>}
+          </View>
         )}
 
         {children}

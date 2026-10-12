@@ -3,6 +3,9 @@
 1. A vision model reads the photos (identify) — the only AI call.
 2. Plain rules + local visual similarity find the catalog entry (app.matching); its facts override the reading.
 3. Prices come from the catalog listings of that coin, computed in app.pricing.
+
+When the year read has no listing, the result carries a `year_check` so the app can ask the user which year the
+coin shows; `correct_year` then re-prices the same reading with that year (no new AI call).
 """
 
 import logging
@@ -56,6 +59,48 @@ def run(
         elif coin.photo_sides[0] == coin.photo_sides[1] != "unclear":
             photo_warning = "same_side"
 
+    return price(coin, names, [data for data, _ in photos], photo_warning, currency, language, catalog_db, store, index)
+
+
+def correct_year(
+    previous: dict, year: int, catalog_db: sqlite3.Connection, store: collection.Store, index=None
+) -> dict:
+    """Re-price a previous estimate with the year the user reads on the coin. Same reading, no AI call."""
+    coin = identify.CoinIdentification.model_validate(previous["identification"])
+    if coin.year and coin.title:  # the title was written from the reading: carry the user's year into it
+        coin.title = coin.title.replace(str(coin.year), str(year))
+    coin.year = year
+    names = [n for n in (previous["photos"]["front"], previous["photos"]["back"]) if n]
+    data = [store.photo(n) for n in names]
+    photos = [d for d in data if d is not None]
+    return price(
+        coin,
+        names,
+        photos,
+        previous.get("photo_warning"),
+        previous["currency"],
+        previous.get("language", identify.DEFAULT_LANGUAGE),
+        catalog_db,
+        store,
+        index,
+        year_confirmed=True,
+    )
+
+
+def price(
+    coin: identify.CoinIdentification,
+    names: list[str],
+    photos: list[bytes],
+    photo_warning: str | None,
+    currency: str,
+    language: str,
+    catalog_db: sqlite3.Connection,
+    store: collection.Store,
+    index=None,
+    year_confirmed: bool = False,
+) -> dict:
+    """Steps 2 and 3 for a reading: catalog match, melt value, price. `names`: stored photo names, obverse first."""
+    t0 = time.monotonic()
     result = {
         "currency": currency,
         "language": language,
@@ -67,11 +112,12 @@ def run(
         "comparables": [],
         "price_table": [],
         "valuation": None,
+        "year_check": None,
     }
     if coin.status != "identified":
         return result  # never value something we could not identify
 
-    match = matching.find(catalog_db, coin, [data for data, _ in photos], index)
+    match = matching.find(catalog_db, coin, photos, index)
     log.warning("estimate matched (%s) +%.1fs", match and match.row["id"], time.monotonic() - t0)
     if match:
         _apply_catalog_facts(coin, match.row)
@@ -98,6 +144,8 @@ def run(
     comparables = catalog.comparables(catalog_db, coin, currency)
     result["comparables"] = sorted(comparables, key=lambda c: c["id"] not in same_ids)
     if not same:
+        if coin.year and not year_confirmed:  # maybe a misread date: let the user say which year the coin shows
+            result["year_check"] = {"read": coin.year, "suggestions": matching.year_suggestions(catalog_db, coin)}
         return result  # no catalog listing of this exact coin: no price rather than a made-up one
 
     points = []

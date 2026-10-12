@@ -12,7 +12,7 @@ import uuid
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, ImageOps
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
 
 from app import collection, framecheck, identify, metals, pipeline, visual
 from app.db import connect
@@ -94,6 +94,20 @@ def estimate(
         raise HTTPException(502, f"identification failed: {e}") from e
 
 
+class YearCorrection(BaseModel):
+    estimate: dict
+    year: int = Field(ge=1, le=2100)
+
+
+@app.post("/estimate/year")
+def estimate_year(body: YearCorrection):
+    """Re-price an estimate with the year the user reads on the coin (no AI call, so not counted in the daily cap)."""
+    try:
+        return pipeline.correct_year(body.estimate, body.year, catalog_db, store, visual_index)
+    except (KeyError, TypeError, ValidationError) as e:
+        raise HTTPException(422, "not an estimate") from e
+
+
 @app.get("/catalog/search")
 def catalog_search(q: str = "", country: str | None = None, year: int | None = None, limit: int = 30):
     where, params = ["1"], []
@@ -146,17 +160,28 @@ def list_collection(currency: str = "EUR"):
     currency = currency.upper()
     items = [_item_view(r, currency) for r in store.items()]
 
-    def total(key: str) -> float:
-        return round(sum((i[key] or 0) * i["quantity"] for i in items), 2)
+    def total(key: str, rows: list[dict]) -> float:
+        return round(sum((i[key] or 0) * i["quantity"] for i in rows), 2)
 
+    def melt(rows: list[dict]) -> float:
+        return round(sum((i["melt"] or {}).get("value", 0) * i["quantity"] for i in rows), 2)
+
+    priced = [i for i in items if i["value_low"] is not None]
+    unpriced = [i for i in items if i["value_low"] is None]
     return {
         "currency": currency,
         "items": items,
         "totals": {
             "count": sum(i["quantity"] for i in items),
-            "value_low": total("value_low"),
-            "value_high": total("value_high"),
-            "melt": round(sum((i["melt"] or {}).get("value", 0) * i["quantity"] for i in items), 2),
+            # priced coins at their value, the others at their metal value (the one sure figure)
+            "total_low": round(total("value_low", priced) + melt(unpriced), 2),
+            "total_high": round(total("value_high", priced) + melt(unpriced), 2),
+            "priced_count": sum(i["quantity"] for i in priced),
+            "value_low": total("value_low", priced),
+            "value_high": total("value_high", priced),
+            "unpriced_count": sum(i["quantity"] for i in unpriced),
+            "unpriced_melt": melt(unpriced),
+            "melt": melt(items),
         },
     }
 

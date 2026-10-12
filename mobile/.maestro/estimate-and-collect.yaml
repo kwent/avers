@@ -56,10 +56,11 @@ tags: [e2e]
       id: "catalog-match"
     visibilityPercentage: 50
     centerElement: true
-- scrollUntilVisible:
-    element: "Ajouter à ma collection"
-    direction: UP
-- tapOn: "Ajouter à ma collection"
+- runFlow: # the add bar sticks to the bottom; a scroll gesture above may already have tapped it
+    when:
+      visible: "Ajouter à ma collection"
+    commands:
+      - tapOn: "Ajouter à ma collection"
 
 # Item screen
 - extendedWaitUntil:
