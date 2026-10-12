@@ -18,7 +18,7 @@ Avers is a small mobile app for coin collectors. You photograph a coin from both
   finds it in the catalog, which is the source of truth for its facts and prices,
 - **estimates its condition** on the French grading scale (B · TB · TTB · SUP · SPL · FDC),
 - **values it** from the catalog listings of that exact coin, per grade, with shop and private-resale prices
-  (Numista's indicative price when the catalog has none; never a made-up one),
+  (Numista's per-grade prices, priced the same way, when the catalog has none; never a made-up one),
 - **asks** which year the coin shows when the date read may be wrong (a worn 5 taken for a 6),
 - computes the **melt value** of its precious metal content from live spot prices,
 - keeps a **personal collection** with quantities, notes and a running total value.
@@ -37,7 +37,8 @@ data/     local only (git-ignored): catalog database, images, collection, upload
 phone ──photos──▶ POST /estimate
                    ├─ vision model: read the photos (or refuse: not a coin / unidentifiable)   ← the only AI call
                    ├─ matching (plain rules): catalog listings with the same country, value, year, mint,
-                   │    reference — confirmed by visual similarity (local DINOv2 over catalog photos)
+                   │    reference — confirmed by visual similarity (local DINOv2 over catalog photos,
+                   │    computed while the vision model reads the photos)
                    └─ pricing (plain code): price per grade from those listings, old prices brought to
                         today's metal price, never below melt; no listing → no price, never a guess
        ◀─result─┘
@@ -93,7 +94,8 @@ Lexend type ramp, spacing, radius) live in `mobile/src/theme/tokens.js` and feed
   of git. Environment: `AI_GATEWAY_API_KEY`, `APP_TOKEN`, `DATABASE_URL`, `CORS_ORIGINS`, `MAX_ESTIMATES_PER_DAY` (default 100), `COINS_DB=.deploy/catalog.sqlite`,
   `COINS_DB_READONLY=1`, `VISION_ONNX=.deploy/dinov2-small.onnx`, optional `NUMISTA_API_KEY`.
 - **Numista** (optional, free API plan): when the catalog has no listing of a coin, `app/numista.py` looks its type
-  up (by Gadoury number) for the years and mints really struck, the mintage and an indicative price per grade.
+  up (by Gadoury number) for the years and mints really struck, the mintage and its price per grade, which goes
+  through the same pricing as catalog listings (grade table, melt floor, private-resale share).
   Answers are cached in the database; `NUMISTA_MAX_PER_MONTH` (default 1800) keeps it under the free quota.
 - **Web app** (`mobile/`, Vercel project `avers`): the Expo web export, installable from Safari ("Add to Home Screen").
 
@@ -119,8 +121,9 @@ mobile/scripts/e2e-ios.sh                        # all flows; or pass a flow fil
 ```
 
 The script starts its own API on port 8001 with an empty, throwaway collection, so tests never touch real data, and
-opens the app with that server in the link. The full journey makes real vision-model calls; the test API turns the
-1851 it reads into 1861 (`E2E_MISREAD_YEARS`) so the flow also answers the year question.
+opens the app with that server in the link. The full journey makes real vision-model calls; the test API
+(`backend/tests/e2e_api.py`, the real app with one test hook) turns the 1851 it reads into 1861
+(`E2E_MISREAD_YEARS`) so the flow also answers the year question.
 
 ### Choosing the vision model
 
