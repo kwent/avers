@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 from pydantic import BaseModel
 
-from app import catalog, collection, identify, metals
+from app import catalog, collection, framecheck, identify, metals
 from app.db import IMAGES_DIR, connect
 
 MAX_SIDE = 1568  # Claude downsizes anything larger anyway
@@ -59,6 +59,15 @@ def health():
 @app.get("/spot")
 def spot(currency: str = "EUR"):
     return metals.spot_prices(currency.upper())
+
+
+@app.post("/frame-check")
+def frame_check(frame: UploadFile = File(...)):
+    """Cheap live-camera guidance: is there a sharp, well-lit, centred coin in the guide circle?"""
+    try:
+        return framecheck.check_frame(frame.file.read()).to_dict()
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
 
 
 @app.post("/estimate")

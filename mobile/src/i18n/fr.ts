@@ -25,6 +25,17 @@ const fr = {
     promptFront: 'Photographiez le côté face',
     promptBack: 'Retournez la pièce : côté pile',
     hint: 'Placez la pièce dans le cercle',
+    // live guidance, keyed by the API's frame-check status
+    guide: {
+      ok: 'Parfait, ne bougez plus…',
+      no_coin: 'Placez la pièce dans le cercle',
+      too_dark: 'Trop sombre : ajoutez de la lumière',
+      off_center: 'Centrez la pièce dans le cercle',
+      too_small: 'Rapprochez-vous de la pièce',
+      too_big: 'Éloignez-vous un peu',
+      blurry: 'Image floue : tenez le téléphone immobile',
+      glare: 'Reflet sur la pièce : inclinez légèrement',
+    },
     shoot: 'Prendre la photo',
     skip: 'Passer',
   },

@@ -139,6 +139,16 @@ export function estimate(s: Settings, front: string, back: string | null, langua
   return request(s, '/estimate', { method: 'POST', body: form });
 }
 
+export type FrameStatus = 'ok' | 'no_coin' | 'too_dark' | 'off_center' | 'too_small' | 'too_big' | 'blurry' | 'glare';
+
+export type FrameCheck = { status: FrameStatus; coin: { x: number; y: number; r: number } | null };
+
+export function frameCheck(s: Settings, uri: string): Promise<FrameCheck> {
+  const form = new FormData();
+  form.append('frame', new File(uri));
+  return request(s, '/frame-check', { method: 'POST', body: form });
+}
+
 export const getCollection = (s: Settings) => request<CollectionResponse>(s, `/collection?currency=${s.currency}`);
 
 export const getItem = (s: Settings, id: number) => request<Item>(s, `/collection/${id}?currency=${s.currency}`);
