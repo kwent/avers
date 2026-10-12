@@ -1,0 +1,23 @@
+# Opens Avers in Expo Go on the Scanner tab.
+appId: host.exp.Exponent
+---
+- openLink: exp://127.0.0.1:8081
+- tapOn:
+    text: "Cancel" # photo picker left open by an aborted run
+    optional: true
+- tapOn:
+    text: "Continue" # Expo Go developer-menu onboarding, first launch only
+    optional: true
+- repeat: # back out of any screen a previous run stopped on
+    times: 4
+    while:
+      notVisible: "Scanner, tab, 1 of 3"
+    commands:
+      - tapOn:
+          text: "Retour"
+          optional: true
+- extendedWaitUntil:
+    visible: "Scanner, tab, 1 of 3"
+    timeout: 60000
+- tapOn: "Scanner, tab, 1 of 3"
+- assertVisible: "Combien vaut ma pièce ?"

@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Button, Card } from '../../components/ui';
+import { toUploadJpeg } from '../../lib/images';
 import { resetScan, scan } from '../../lib/scanStore';
 import { colors, font } from '../../lib/theme';
 
@@ -16,9 +17,10 @@ export default function ScannerHome() {
     });
     if (res.canceled) return;
     if (!res.assets.length) return Alert.alert('Aucune photo choisie');
+    const [front, back] = await Promise.all(res.assets.map((a) => toUploadJpeg(a.uri, a.width, a.height)));
     resetScan();
-    scan.front = res.assets[0].uri;
-    scan.back = res.assets[1]?.uri ?? null;
+    scan.front = front;
+    scan.back = back ?? null;
     router.push('/result');
   };
 

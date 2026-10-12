@@ -1,0 +1,18 @@
+# Navigation and API connectivity. No Claude call.
+appId: host.exp.Exponent
+name: Smoke
+tags: [smoke]
+---
+- runFlow: subflows/open-app.yaml
+- assertVisible: "Photographier une pièce"
+- assertVisible: "Choisir dans mes photos"
+
+- tapOn: "Ma collection, tab, 2 of 3"
+- assertVisible: "VALEUR DE MA COLLECTION"
+
+- tapOn: "Réglages, tab, 3 of 3"
+- tapOn: "EUR"
+- tapOn: "Enregistrer et tester"
+- extendedWaitUntil:
+    visible: "Connecté ✓.*"
+    timeout: 15000

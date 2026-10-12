@@ -23,3 +23,6 @@ htmlcov/
 .idea/
 .vscode/
 *.swp
+
+# e2e coin photos (not redistributable)
+mobile/.maestro/fixtures/

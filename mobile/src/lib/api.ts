@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import { Settings } from './settings';
 
 export type Grade = 'B' | 'TB' | 'TTB' | 'SUP' | 'SPL' | 'FDC' | 'unknown';
@@ -106,7 +107,8 @@ async function request<T>(s: Settings, path: string, init: RequestInit = {}): Pr
   let res: Response;
   try {
     res = await fetch(`${s.apiUrl}${path}`, { ...init, headers });
-  } catch {
+  } catch (e) {
+    console.warn(`fetch ${path} failed`, e);
     throw new ApiError('Serveur injoignable. Vérifiez la connexion et l’adresse dans Réglages.');
   }
   if (!res.ok) {
@@ -119,10 +121,10 @@ async function request<T>(s: Settings, path: string, init: RequestInit = {}): Pr
 export const photoUrl = (s: Settings, name: string | null) => (name ? `${s.apiUrl}/uploads/${name}` : undefined);
 
 export function estimate(s: Settings, front: string, back: string | null): Promise<Estimate> {
+  // expo/fetch (the global fetch) only takes Blob/File parts, not RN's { uri, name, type } objects
   const form = new FormData();
-  // React Native FormData accepts { uri, name, type } file descriptors
-  form.append('front', { uri: front, name: 'front.jpg', type: 'image/jpeg' } as any);
-  if (back) form.append('back', { uri: back, name: 'back.jpg', type: 'image/jpeg' } as any);
+  form.append('front', new File(front));
+  if (back) form.append('back', new File(back));
   form.append('currency', s.currency);
   return request(s, '/estimate', { method: 'POST', body: form });
 }

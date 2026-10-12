@@ -67,6 +67,19 @@ cd mobile && npx tsc --noEmit && npx expo-doctor
 
 CI runs both on every push and pull request.
 
+### End-to-end tests (iOS Simulator)
+
+[Maestro](https://maestro.dev) flows in `mobile/.maestro/` drive the app in Expo Go: a smoke test, and a full journey
+(pick front and back photos → real estimate → save → collection total → delete).
+
+```bash
+brew install mobile-dev-inc/tap/maestro          # needs a JDK (e.g. openjdk@21)
+# API on :8000 and `npx expo start` running, coin photos in mobile/.maestro/fixtures/coin-{front,back}.jpg
+mobile/scripts/e2e-ios.sh                        # all flows; or pass a flow file
+```
+
+The full journey makes real Claude calls.
+
 ## Disclaimer
 
 Estimates are indicative only: they combine dealer asking prices, an AI-estimated grade and the metal price of the day. Have valuable coins appraised by a professional before selling.

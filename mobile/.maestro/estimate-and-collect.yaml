@@ -1,0 +1,52 @@
+# Full journey: pick the two coin photos → estimate (real Claude call) → save → collection total → delete.
+# Requires the fixture photos in the simulator library (scripts/e2e-ios.sh adds them).
+appId: host.exp.Exponent
+name: Estimate and collect
+tags: [e2e]
+---
+- runFlow: subflows/open-app.yaml
+- tapOn: "Choisir dans mes photos"
+
+# iOS photo picker: fixtures are dated by scripts/e2e-ios.sh (front 2099-01-02, back 2099-01-01).
+- tapOn:
+    text: "Photo, January 02, 2099, [^,]+"
+    index: 0
+- tapOn:
+    text: "Photo, January 01, 2099, [^,]+"
+    index: 0
+- tapOn: "Done"
+
+- assertVisible: "Analyse de la pièce…"
+- extendedWaitUntil:
+    visible: "VALEUR ESTIMÉE"
+    timeout: 120000
+- assertVisible: ".*10 Francs.*1851.*"
+- scrollUntilVisible:
+    element: "VALEUR DU MÉTAL \\(MINIMUM\\)"
+- scrollUntilVisible:
+    element: "PIÈCES COMPARABLES CHEZ LES MARCHANDS"
+- scrollUntilVisible:
+    element: "Ajouter à ma collection"
+- tapOn: "Ajouter à ma collection"
+
+# Item screen
+- extendedWaitUntil:
+    visible: "DANS MA COLLECTION"
+    timeout: 15000
+- tapOn: "Plus"
+- assertVisible: "Total :.*"
+
+# Collection totals
+- tapOn: "Retour"
+- tapOn: "Ma collection, tab, 2 of 3"
+- assertVisible: "VALEUR DE MA COLLECTION"
+- assertVisible: "2 pièces.*"
+- assertVisible: "2 × .*10 Francs.*"
+
+# Clean up
+- tapOn: "2 × .*10 Francs.*"
+- scrollUntilVisible:
+    element: "Retirer de ma collection"
+- tapOn: "Retirer de ma collection"
+- tapOn: "Retirer"
+- assertVisible: "Votre collection est vide."
