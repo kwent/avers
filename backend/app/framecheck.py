@@ -35,17 +35,18 @@ class FrameCheck:
         return asdict(self)
 
 
-def _find_coin(gray: np.ndarray, guide_r: float) -> tuple[float, float, float] | None:
+def find_coin(gray: np.ndarray, min_r: float, max_r: float) -> tuple[float, float, float] | None:
+    """The coin's circle (x, y, r) in a greyscale image, looking for one radius between min_r and max_r."""
     blurred = cv2.medianBlur(gray, 5)
     circles = cv2.HoughCircles(
         blurred,
         cv2.HOUGH_GRADIENT,
         dp=1.5,
-        minDist=gray.shape[0],  # one coin
+        minDist=max(gray.shape),  # one coin
         param1=110,
         param2=40,
-        minRadius=int(guide_r * 0.45),
-        maxRadius=int(guide_r * 1.15),
+        minRadius=int(min_r),
+        maxRadius=int(max_r),
     )
     if circles is None:
         return None
@@ -65,7 +66,7 @@ def check_frame(data: bytes) -> FrameCheck:
     c = WORK_SIZE / 2
     guide_r = WORK_SIZE / GUIDE_PADDING / 2
 
-    found = _find_coin(gray, guide_r)
+    found = find_coin(gray, guide_r * 0.45, guide_r * 1.15)
     if found is None:
         # too dark to see edges is the more useful hint than "no coin"
         guide = np.zeros_like(gray)

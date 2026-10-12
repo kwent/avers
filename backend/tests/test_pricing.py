@@ -81,3 +81,10 @@ def test_grade_below_every_listing_is_bounded_by_metal_and_the_next_grade():
     assert (est.value_low, est.value_high) == (350, ttb.resale)
     assert est.retail_high == ttb.retail
     assert pricing.estimate(rows, "TB", None) is None  # no metal floor: no lower bound, no price
+
+
+def test_range_stays_ordered_when_a_better_grade_is_cheaper():
+    # an old TTB listing with a big premium above a recent SUP one (40 Francs Louis XVIII 1817 A)
+    rows = pricing.price_table(pricing.prepare([pt(2649, "TTB"), pt(2111, "SUP")], None, None, None, 1.0), None)
+    est = pricing.estimate(rows, "TTB", None)
+    assert est.retail_low <= est.retail_high and est.value_low <= est.value_high

@@ -162,8 +162,9 @@ def estimate(rows: list[GradePrice], grade: str | None, melt_now: float | None) 
         )
     below = rows[i - 1].retail if i > 0 and rows[i - 1].retail else row.retail
     above = rows[i + 1].retail if i + 1 < len(rows) and rows[i + 1].retail else row.retail
-    retail_low = (below * row.retail) ** 0.5  # geometric midpoints between grades
-    retail_high = (above * row.retail) ** 0.5
+    # geometric midpoints between grades; listings do not always rise with the grade (an old listing with a big
+    # premium can top a better coin's), so the range is ordered
+    retail_low, retail_high = sorted(((below * row.retail) ** 0.5, (above * row.retail) ** 0.5))
     floor = melt_now or 0.0
     return Estimate(
         grade=grade,

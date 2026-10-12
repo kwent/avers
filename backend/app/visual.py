@@ -22,6 +22,7 @@ from functools import lru_cache
 import numpy as np
 from PIL import Image, ImageOps
 
+from app import framecheck
 from app.db import BACKEND, IMAGES_DIR, ROOT, connect
 
 MODEL = "facebook/dinov2-small"
@@ -65,6 +66,26 @@ def square(img: Image.Image) -> Image.Image:
     side = min(img.size)
     left, top = (img.width - side) // 2, (img.height - side) // 2
     return img.crop((left, top, left + side, top + side))
+
+
+COIN_SEARCH_SIDE = 640  # px, where the coin is looked for
+COIN_MARGIN = 1.05  # crop a little beyond the coin's edge
+
+
+def coin_square(img: Image.Image) -> Image.Image:
+    """The square around the coin, wherever it is in the photo (a library photo shows the holder, fingers, the
+    room): what surrounds the coin would otherwise weigh in the similarity. The centre square when no coin is found."""
+    img = ImageOps.exif_transpose(img).convert("RGB")
+    k = COIN_SEARCH_SIDE / max(img.size)
+    small = img.resize((round(img.width * k), round(img.height * k)))
+    side = min(small.size)
+    found = framecheck.find_coin(np.asarray(small.convert("L")), side * 0.15, side * 0.5)
+    if found is None:
+        return square(img)
+    x, y, r = (v / k for v in found)
+    half = r * COIN_MARGIN
+    box = (max(0, x - half), max(0, y - half), min(img.width, x + half), min(img.height, y + half))
+    return img.crop(tuple(round(v) for v in box))
 
 
 def preprocess(images: list[Image.Image]) -> np.ndarray:
@@ -111,7 +132,7 @@ class Index:
     @staticmethod
     def query(photo: bytes) -> np.ndarray:
         """A user photo at every rotation (a coin can be shot at any angle), (len(ROTATIONS), 768) float32."""
-        return embed(rotations(square(Image.open(io.BytesIO(photo)))))
+        return embed(rotations(coin_square(Image.open(io.BytesIO(photo)))))
 
     def scores(self, queries: list[np.ndarray], coin_ids: list[int]) -> dict[int, float]:
         """Similarity of the user's photos to specific catalog coins (coins without images are left out): for each

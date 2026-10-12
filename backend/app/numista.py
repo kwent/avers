@@ -97,11 +97,17 @@ def find_type(store, coin: CoinIdentification) -> dict | None:
     the year only ranks the candidates."""
     refs = sorted(gadoury_refs(coin.catalog_refs))
     catalogue = _gadoury_catalogue(store) if refs else None
+    face = plain(coin.denomination)
+
+    def same_face(t: dict) -> bool:  # "20 Francs" must not match "20 centimes": the title names the denomination
+        return not face or face in plain(t.get("title"))
+
     found = []
     if catalogue:
         for ref in refs:
             data = _get(store, "/types", {"catalogue": catalogue, "number": ref, "category": "coin"}, FACTS_AGE)
-            found += (data or {}).get("types", [])
+            # a reading can quote a wrong number (G. 476 is the 1 Franc de Gaulle, not a 40 Francs Louis XVIII)
+            found += [t for t in (data or {}).get("types", []) if same_face(t)]
     if not found:
         words = " ".join(w for w in (coin.denomination, coin.type_name) if w)
         if not words:
@@ -111,9 +117,7 @@ def find_type(store, coin: CoinIdentification) -> dict | None:
         if issuer:
             params["issuer"] = issuer
         data = _get(store, "/types", params, FACTS_AGE)
-        face = plain(coin.denomination or "")
-        # "20 Francs" must not match "20 centimes": the title has to name the same denomination
-        found = [t for t in (data or {}).get("types", []) if not face or face in plain(t.get("title", ""))]
+        found = [t for t in (data or {}).get("types", []) if same_face(t)]
     if not found:
         return None
 

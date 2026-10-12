@@ -79,3 +79,14 @@ def test_face_values_cover_sub_units(face, denomination, expected):
 )
 def test_misread_rank(read, year, rank):
     assert years.misread_rank(read, year) == rank
+
+
+def test_visual_search_looks_at_the_coin_not_the_room():
+    from PIL import Image, ImageDraw
+
+    from app import visual
+
+    photo = Image.new("RGB", (900, 1200), (235, 235, 230))  # a holder, the coin low and to the left
+    ImageDraw.Draw(photo).ellipse((150, 600, 550, 1000), fill=(200, 160, 60), outline=(90, 60, 20), width=6)
+    crop = visual.coin_square(photo)
+    assert abs(crop.width - 420) < 30 and abs(crop.height - 420) < 30  # the coin (radius 200) and a 5% margin

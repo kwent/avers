@@ -90,3 +90,21 @@ def test_get_caches_and_respects_the_monthly_quota(monkeypatch):
 def test_disabled_without_key(monkeypatch):
     monkeypatch.setattr(numista, "KEY", "")
     assert numista._get(main.store, "/types", {}, numista.FACTS_AGE) is None
+
+
+def test_a_wrong_gadoury_number_falls_back_to_text_search(monkeypatch):
+    """The reading quotes G. 476 (the 1 Franc de Gaulle) for a 10 Francs Cérès: that type is not taken."""
+    de_gaulle = {"id": 99, "title": "1 Franc (Charles de Gaulle)", "min_year": 1988, "max_year": 1988}
+
+    def get(store, path, params, max_age):
+        if path == "/catalogues":
+            return {"catalogues": [{"id": 109, "title": "Monnaies françaises", "author": "Gadoury"}]}
+        if path == "/types":
+            return {"types": [de_gaulle] if "number" in params else [CERES]}
+        return None
+
+    monkeypatch.setattr(numista, "KEY", "test")
+    monkeypatch.setattr(numista, "_get", get)
+    monkeypatch.setattr(numista, "_lists", {})
+    coin = make_coin(catalog_refs=["G. 476"])
+    assert numista.find_type(None, coin)["id"] == CERES["id"]
