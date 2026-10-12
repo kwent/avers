@@ -3,7 +3,6 @@
   "short_name": "Avers",
   "description": "Photographier une pièce, savoir ce qu'elle est et ce qu'elle vaut.",
   "lang": "fr",
-  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
