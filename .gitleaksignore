@@ -1,0 +1,2 @@
+# False positive: "patch tokens, L2-normalised" in a docstring (DINOv2 pooling), not a secret.
+cba17dc9de4478879af1e81624c966936067bdf7:backend/app/visual.py:generic-api-key:154
