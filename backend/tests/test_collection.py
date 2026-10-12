@@ -92,3 +92,11 @@ def test_saved_coin_leaves_scan_only_fields_out(store):
     item_id = store.add({**estimate(), "year_check": {"read": 1861, "suggestions": [1851]}, "already_owned": 2})
     saved = json.loads(store.get(item_id)["estimate"])
     assert "year_check" not in saved and "already_owned" not in saved
+
+
+def test_catalog_update_keeps_its_vectors_when_seen_again(store):
+    store.execute("DELETE FROM catalog_updates")
+    store.save_catalog_update("s", "1", "{}", "[]", b"\x01", "2026-10-01 00:00:00")
+    store.save_catalog_update("s", "1", '{"price": 2}', "[]", None, "2026-10-08 00:00:00")
+    row = store.query("SELECT coin, vectors FROM catalog_updates WHERE source_id = '1'")[0]
+    assert row["coin"] == '{"price": 2}' and bytes(row["vectors"]) == b"\x01"

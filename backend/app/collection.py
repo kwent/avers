@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS daily_usage (day TEXT PRIMARY KEY, estimates INTEGER 
 CREATE TABLE IF NOT EXISTS api_cache (key TEXT PRIMARY KEY, data TEXT NOT NULL, fetched_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, n INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS photos_created ON photos (created_at);
+-- every change seen on a catalog listing (a sale when it goes out of stock)
+CREATE TABLE IF NOT EXISTS listing_history (
+  source TEXT NOT NULL, source_id TEXT NOT NULL, price REAL, in_stock INTEGER, seen_at TEXT NOT NULL
+);
 """
 # Columns added after the first release: (table, column, sqlite type, postgres type)
 ADDED_COLUMNS = [("photos", "thumb", "BLOB", "BYTEA"), ("photos", "embedding", "BLOB", "BYTEA")]
@@ -65,6 +69,15 @@ CREATE TABLE IF NOT EXISTS photos (
   thumb BLOB,                     -- small JPEG for lists
   embedding BLOB                  -- visual query vectors (float32), so a re-price does not re-run the model
 );
+CREATE TABLE IF NOT EXISTS catalog_updates (  -- catalog listings new or changed since the shipped catalog
+  source TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  coin TEXT NOT NULL,             -- JSON, as db.upsert_coin takes it
+  images TEXT NOT NULL,           -- JSON [[position, url]]
+  vectors BLOB,                   -- visual embeddings of its photos (float32), new listings only
+  seen_at TEXT NOT NULL,
+  PRIMARY KEY (source, source_id)
+);
 {COMMON_TABLES}"""
 
 POSTGRES_SCHEMA = f"""
@@ -80,6 +93,15 @@ CREATE TABLE IF NOT EXISTS photos (
   data BYTEA NOT NULL,
   thumb BYTEA,
   embedding BYTEA
+);
+CREATE TABLE IF NOT EXISTS catalog_updates (
+  source TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  coin TEXT NOT NULL,
+  images TEXT NOT NULL,
+  vectors BYTEA,
+  seen_at TEXT NOT NULL,
+  PRIMARY KEY (source, source_id)
 );
 {COMMON_TABLES}"""
 
@@ -317,6 +339,16 @@ class Store:
         rows = self.query(sql, (name,))
         row = rows[0] if rows else {}
         return _bytes(row.get("thumb")), _bytes(row.get("data"))
+
+    def save_catalog_update(
+        self, source: str, source_id: str, coin: str, images: str, vectors: bytes | None, seen_at: str
+    ) -> None:
+        self.execute(
+            "INSERT INTO catalog_updates (source, source_id, coin, images, vectors, seen_at) VALUES (?, ?, ?, ?, ?, ?)"
+            " ON CONFLICT (source, source_id) DO UPDATE SET coin = excluded.coin, images = excluded.images,"
+            " vectors = COALESCE(excluded.vectors, catalog_updates.vectors), seen_at = excluded.seen_at",
+            (source, source_id, coin, images, vectors, seen_at),
+        )
 
     def set_thumb(self, name: str, thumb: bytes) -> None:
         self.execute("UPDATE photos SET thumb = ? WHERE name = ?", (thumb, name))

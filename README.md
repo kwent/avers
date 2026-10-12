@@ -93,7 +93,12 @@ Lexend type ramp, spacing, radius) live in `mobile/src/theme/tokens.js` and feed
   ships read-only inside the function, the collection and its photos live in Postgres (Neon, from the Vercel
   Marketplace). `backend/deploy.sh` copies the catalog and the ONNX model into the bundle and deploys; both stay out
   of git. Environment: `AI_GATEWAY_API_KEY`, `APP_TOKEN`, `DATABASE_URL`, `CORS_ORIGINS`, `MAX_ESTIMATES_PER_DAY` (default 100), `COINS_DB=.deploy/catalog.sqlite`,
-  `COINS_DB_READONLY=1`, `VISION_ONNX=.deploy/dinov2-small.onnx`, optional `NUMISTA_API_KEY`.
+  `COINS_DB_READONLY=1`, `VISION_ONNX=.deploy/dinov2-small.onnx`, `CRON_SECRET`, optional `NUMISTA_API_KEY`.
+- **Weekly catalog refresh**: a Vercel cron (`vercel.json`, Mondays 03:00 UTC) calls `/cron/catalog` with
+  `CRON_SECRET`; it reads the source's listings again (the scraper is deployed with the API but not in this
+  repository) and keeps new and changed listings, with their photos' embeddings, in Postgres (`catalog_updates`,
+  and every change in `listing_history`). Each instance applies them to a temp copy of the shipped catalog at start
+  (`app/catalog_updates.py`). Redeploying with a fresh local catalog folds them in.
 - **Numista** (optional, free API plan): when the catalog has no listing of a coin, `app/numista.py` looks its type
   up (by Gadoury number) for the years and mints really struck, the mintage and its price per grade, which goes
   through the same pricing as catalog listings (grade table, melt floor, private-resale share).

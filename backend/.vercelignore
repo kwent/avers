@@ -5,7 +5,7 @@ __pycache__
 tests
 bench
 .env*
-scrapers
+scrapers/images.py
 .agents
 .claude
 skills-lock.json

@@ -10,6 +10,8 @@ Plain code, no AI: `backend/app/pricing.py` (the rules), `backend/app/pipeline.p
   still for sale is an asking price; one no longer in stock counts as sold.
 - **Numista**, only when the catalog has no listing of the coin: Numista's price for each grade, treated like
   listings.
+- The catalog is read again every week (new listings, new prices, listings gone out of stock), so recent prices
+  reach the estimates without a redeploy.
 - Nothing else. No listing and no Numista price means no price: the app says so and shows the metal value as a
   floor ("Elle vaut au moins …").
 

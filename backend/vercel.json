@@ -6,8 +6,14 @@
   ],
   "functions": {
     "app/main.py": {
-      "maxDuration": 60,
+      "maxDuration": 800,
       "includeFiles": ".deploy/**"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/cron/catalog",
+      "schedule": "0 3 * * 1"
+    }
+  ]
 }

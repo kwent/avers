@@ -14,8 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, ImageOps
 from pydantic import BaseModel, Field, ValidationError
 
-from app import collection, framecheck, identify, metals, pipeline, visual
-from app.db import connect
+from app import catalog_updates, collection, framecheck, identify, metals, pipeline, visual
 
 MAX_SIDE = 1568  # vision models downsize anything larger anyway
 THUMB_SIDE = 256  # list thumbnails (shown at 72pt, 3x on a phone)
@@ -26,8 +25,9 @@ MAX_ESTIMATES_PER_DAY = int(os.environ.get("MAX_ESTIMATES_PER_DAY", "100"))
 
 
 def check_token(request: Request, x_app_token: str | None = Header(default=None)):
-    if request.method == "OPTIONS" or request.url.path == "/health" or request.url.path.startswith("/uploads/"):
-        return  # health checks; image views cannot send headers (photo names are random)
+    path = request.url.path
+    if request.method == "OPTIONS" or path == "/health" or path.startswith(("/uploads/", "/cron/")):
+        return  # health checks; image views cannot send headers (photo names are random); cron has its own secret
     if APP_TOKEN and not (x_app_token and secrets.compare_digest(x_app_token, APP_TOKEN)):
         raise HTTPException(401, "invalid token")
 
@@ -36,10 +36,11 @@ app = FastAPI(title="Avers API", dependencies=[Depends(check_token)])
 # The web build of the app is served from another origin (comma-separated list, e.g. https://avers.vercel.app).
 if origins := [o.strip() for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]:
     app.add_middleware(CORSMiddleware, allow_origins=origins, allow_methods=["*"], allow_headers=["*"], max_age=3600)
-catalog_db = connect()
+store = collection.connect()
+catalog_db = catalog_updates.open_catalog(store)  # the shipped catalog + the weekly refresh's changes
 # Visual search over catalog photos (optional `vision` extra; built with `python -m app.visual build`)
 visual_index = visual.Index(catalog_db) if visual.available() else None
-store = collection.connect()
+CRON_SECRET = os.environ.get("CRON_SECRET")  # Vercel sends it to cron routes
 
 
 def _normalize_photo(upload: UploadFile) -> tuple[bytes, str]:
@@ -66,6 +67,18 @@ def _jpeg(img: Image.Image, quality: int) -> bytes:
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=quality)
     return buf.getvalue()
+
+
+@app.get("/cron/catalog")
+def cron_catalog(authorization: str | None = Header(default=None)):
+    """Weekly (vercel.json crons): read the catalog source again and keep what changed (app.catalog_updates)."""
+    if not CRON_SECRET or not secrets.compare_digest(authorization or "", f"Bearer {CRON_SECRET}"):
+        raise HTTPException(401, "invalid cron secret")
+    try:
+        from scrapers import gadoury  # deployed with the API, kept out of the repository
+    except ImportError as e:
+        raise HTTPException(501, "catalog source not deployed") from e
+    return catalog_updates.refresh(catalog_db, store, gadoury.listings(pause=0.5))
 
 
 @app.get("/health")
