@@ -41,6 +41,7 @@ class Point:
     year: int | None  # year of the price
     kind: str  # "listing" (asking) or "sold"
     url: str | None = None
+    name: str | None = None  # what the source calls it (listing title)
     adjusted: float | None = None  # price at today's metal value
     weight: float = 0.0
 

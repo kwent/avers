@@ -60,10 +60,12 @@ def test_year_never_struck_asks_with_numistas_years(monkeypatch, fake_numista):
     assert est["valuation"] is None
 
 
-def test_catalog_match_does_not_spend_numista_quota(monkeypatch, fake_numista, catalog_1851):
+def test_catalog_match_prices_from_listings_and_shows_numista_beside(monkeypatch, fake_numista, catalog_1851):
     est = estimate_of(monkeypatch)
-    assert est["valuation"]["retail_low"] == 600 and est["numista"] is None
-    assert fake_numista == []
+    assert est["valuation"]["source"] == "catalog" and est["valuation"]["retail_low"] == 600
+    assert est["numista"]["prices"] == {"TTB": 700, "SUP": 900}  # a second opinion, not in the price
+    used = est["valuation"]["points"]
+    assert {p["source"] for p in used} == {"test"} and {p["price"] for p in used} == {600, 1000}
 
 
 def test_get_caches_and_respects_the_monthly_quota(monkeypatch):

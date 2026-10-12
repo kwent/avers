@@ -73,11 +73,71 @@ export function PriceTable({
   );
 }
 
+/** Every price the estimate rests on (with its value today), then Numista's for comparison. */
+export function PricesUsed({ est }: { est: Estimate }) {
+  const { m, locale } = useI18n();
+  const v = est.valuation;
+  const points = v?.points ?? [];
+  const grade = est.identification.grade;
+  const numista = v?.source !== 'numista' ? est.numista : null;
+  const numistaPrice = numista?.prices?.[grade];
+  if (!points.length && numistaPrice == null) return null;
+  return (
+    <Section title={m.estimate.pricesUsed} footer={m.estimate.pricesUsedNote}>
+      {points.map((p, i) => {
+        const when =
+          p.source === 'numista'
+            ? null
+            : p.kind === 'listing'
+              ? m.estimate.inStock
+              : m.estimate.sold(String(p.year ?? ''));
+        const moved = Math.abs(p.adjusted - p.price) > p.price * 0.01;
+        return (
+          <Row
+            key={`${p.url}-${p.grade}-${i}`}
+            accessibilityRole={p.url ? 'link' : undefined}
+            onPress={p.url ? () => Linking.openURL(p.url!) : undefined}
+            chevron={!!p.url}
+            stacked
+            label={[p.grade, when, sourceLabel(p.source)].filter(Boolean).join(', ')}
+            value={
+              <View className="gap-0.5">
+                {!!p.name && <T numberOfLines={2}>{p.name}</T>}
+                <T variant="bodyStrong" tone="gold">
+                  {money(p.price, est.currency, locale)}
+                  {moved ? `  →  ${m.estimate.today(money(p.adjusted, est.currency, locale))}` : ''}
+                </T>
+              </View>
+            }
+          />
+        );
+      })}
+      {numista && numistaPrice != null && (
+        <Row
+          testID="numista-compare"
+          accessibilityRole="link"
+          onPress={() => Linking.openURL(numista.url)}
+          chevron
+          stacked
+          label={m.estimate.numistaCompare(grade)}
+          value={
+            <View className="gap-0.5">
+              {!!numista.title && <T numberOfLines={2}>{numista.title}</T>}
+              <T variant="bodyStrong">{money(numistaPrice, est.currency, locale)}</T>
+            </View>
+          }
+        />
+      )}
+    </Section>
+  );
+}
+
 /** The catalog entry the coin was matched to, then the comparable listings. */
 export function CatalogSection({ est }: { est: Estimate }) {
   const { m } = useI18n();
-  // the API lists listings of this exact coin first
-  const comparables = est.comparables.filter((c) => c.id !== est.match?.id).slice(0, 6);
+  // the listings the price rests on are shown with the prices used
+  const used = new Set(est.valuation?.best_match_ids ?? []);
+  const comparables = est.comparables.filter((c) => c.id !== est.match?.id && !used.has(c.id)).slice(0, 6);
   const match = est.match;
 
   return (

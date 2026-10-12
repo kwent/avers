@@ -56,6 +56,7 @@ def _listing_points(rows: list[sqlite3.Row], currency: str) -> list[pricing.Poin
                     year=_year(r["modified"] or r["created"]),
                     kind="listing" if r["in_stock"] else "sold",
                     url=r["url"],
+                    name=r["name"],
                 )
             )
     return points
@@ -69,7 +70,14 @@ def _numista_points(ref: dict | None) -> list[pricing.Point]:
     this_year = date.today().year
     return [
         pricing.Point(
-            source="numista", price=p, grade=g, rank=pricing.grade_rank(g), year=this_year, kind="sold", url=ref["url"]
+            source="numista",
+            price=p,
+            grade=g,
+            rank=pricing.grade_rank(g),
+            year=this_year,
+            kind="sold",
+            url=ref["url"],
+            name=ref.get("title"),
         )
         for g, p in ref["prices"].items()
     ]
@@ -221,12 +229,13 @@ def price(
     result["comparables"] = sorted(comparables, key=lambda c: c["id"] not in same_ids)
     points = _listing_points(same, currency)
     source = "catalog"
-    if not same:  # no catalog listing of this exact coin: ask Numista, never make a price up
-        lookup = coin
-        if not gadoury_refs(coin.catalog_refs):  # look the type up by the catalog's Gadoury numbers
-            lookup = coin.model_copy(update={"catalog_refs": matching.type_refs(src.catalog_db, coin)})
-        ref = numista.lookup(src.store, lookup, currency)
-        result["numista"] = ref
+    # Numista: a second opinion shown next to the catalog's prices, and the price itself when the catalog has none
+    lookup = coin
+    if not gadoury_refs(coin.catalog_refs):  # look the type up by the catalog's Gadoury numbers
+        lookup = coin.model_copy(update={"catalog_refs": matching.type_refs(src.catalog_db, coin)})
+    ref = numista.lookup(src.store, lookup, currency)
+    result["numista"] = ref
+    if not same:  # no catalog listing of this exact coin: Numista's prices, never a made-up one
         result["year_check"] = years.check(src.catalog_db, coin, ref) if coin.year and not year_confirmed else None
         if result["year_check"]:
             return result  # no price until the user says which year the coin shows
@@ -255,6 +264,20 @@ def price(
             "retail_high": est.retail_high,
             "best_match_ids": sorted(same_ids),
             "source": source,
+            # every price that went into the estimate, as listed and brought to today
+            "points": [
+                {
+                    "source": p.source,
+                    "name": p.name,
+                    "url": p.url,
+                    "grade": p.grade,
+                    "kind": p.kind,
+                    "year": p.year,
+                    "price": round(p.price, 2),
+                    "adjusted": round(p.adjusted, 2),
+                }
+                for p in sorted(points, key=lambda p: -(p.year or 0))
+            ],
             # facts for the app's own wording (no generated text)
             "basis": {
                 "listings": len(points),

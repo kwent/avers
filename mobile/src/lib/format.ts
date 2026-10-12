@@ -39,5 +39,5 @@ export const gradeLabel = (grade: string, m: Messages) =>
   grade === 'unknown' ? gradeName(grade, m) : `${grade} (${gradeName(grade, m)})`;
 
 export function sourceLabel(source: string): string {
-  return source === 'gadoury' ? 'Gadoury' : source;
+  return { gadoury: 'Gadoury', numista: 'Numista' }[source] ?? source;
 }

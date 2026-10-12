@@ -103,7 +103,11 @@ const en: Messages = {
     refs: 'References',
     grade: 'Estimated grade',
     catalogTitle: 'In the catalog',
-    comparables: 'Comparable listings',
+    comparables: 'Other similar coins',
+    pricesUsed: 'Prices used',
+    pricesUsedNote: 'An old price is brought to today’s metal price: the premium paid then above the metal is kept.',
+    today: (amount) => `${amount} today`,
+    numistaCompare: (grade) => `For comparison, Numista’s price in ${grade} (not counted in the estimate)`,
     seeListing: 'See the listing',
     match: 'Recognized in the catalog',
     matchWhy: (criteria, similarity) => {

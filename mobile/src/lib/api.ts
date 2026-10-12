@@ -37,6 +37,18 @@ export type Melt = {
   currency: string;
 };
 
+export type PricePoint = {
+  source: string;
+  name: string | null;
+  url: string | null;
+  grade: string | null;
+  kind: 'listing' | 'sold';
+  year: number | null;
+  /** as listed, and brought to today's metal price (the premium paid then kept) */
+  price: number;
+  adjusted: number;
+};
+
 export type Comparable = {
   id: number;
   source: string;
@@ -62,6 +74,8 @@ export type Valuation = {
   best_match_ids: number[];
   /** where the prices come from: catalog listings, or Numista's estimates when the catalog has none */
   source?: 'catalog' | 'numista';
+  /** every price that went into the estimate, newest first */
+  points?: PricePoint[];
   // explanation text from older saved estimates; new ones carry `basis` and the app writes the text
   explanation?: string;
   basis?: {
@@ -108,6 +122,8 @@ export type Estimate = {
     url: string;
     years: number[];
     issue: { id: number; mintage: number | null; mint: string | null } | null;
+    /** Numista's price per grade (our grade codes) */
+    prices?: Record<string, number>;
   } | null;
   /** set when the year read has no catalog listing: the app asks which year the coin shows */
   year_check?: { read: number; suggestions: number[] } | null;

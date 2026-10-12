@@ -109,7 +109,12 @@ const fr = {
     refs: 'Références',
     grade: 'État estimé',
     catalogTitle: 'Dans le catalogue',
-    comparables: 'Annonces comparables',
+    comparables: 'Autres pièces proches',
+    pricesUsed: 'Les prix utilisés',
+    pricesUsedNote:
+      'Un prix ancien est ramené au cours du métal d’aujourd’hui : la prime payée alors au-dessus du métal est gardée.',
+    today: (amount: string) => `soit ${amount} aujourd’hui`,
+    numistaCompare: (grade: string) => `Pour comparer, la cote Numista en ${grade} (non comptée dans le prix)`,
     seeListing: 'Voir l’annonce',
     match: 'Reconnue dans le catalogue',
     matchWhy: (criteria: string[], similarity: number | null) => {
