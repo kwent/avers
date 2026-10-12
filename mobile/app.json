@@ -21,7 +21,11 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.kwent.avers"
+      "package": "com.kwent.avers",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -51,6 +55,13 @@
     "locales": {
       "fr": "./locales/fr.json",
       "en": "./locales/en.json"
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "654e128f-6ba6-49a0-86be-b69b0b91cdf8"
+      }
+    },
+    "owner": "avers"
   }
 }

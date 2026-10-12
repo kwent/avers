@@ -56,7 +56,8 @@ npm install --legacy-peer-deps
 npx expo start
 ```
 
-Scan the QR code with Expo Go on the phone (same Wi-Fi as the API). The server address can also be changed in the app under **Réglages**.
+Scan the QR code with Expo Go on the phone (same Wi-Fi as the API). Expo Go requires the same free Expo account to be
+signed in on the phone and in the CLI (`npx expo login`). The server address can also be changed in the app under **Réglages**.
 
 ## Development
 
