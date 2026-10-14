@@ -1,4 +1,7 @@
-import type { CameraView } from 'expo-camera';
+import { useCameraPermissions, type CameraView } from 'expo-camera';
+
+/** The camera permission (the system remembers it). */
+export const useCameraAccess = useCameraPermissions;
 
 /** The phone's torch can be driven from the app. */
 export const CAN_TORCH = true;

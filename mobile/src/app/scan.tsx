@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView } from 'expo-camera';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Press, T, thud } from '../components/ui';
 import { useI18n } from '../i18n';
 import { FrameStatus, frameCheck } from '../lib/api';
-import { bestLens, CAN_TORCH, capturedSize, tuneStream } from '../lib/platform/camera';
+import { bestLens, CAN_TORCH, capturedSize, tuneStream, useCameraAccess } from '../lib/platform/camera';
 import { scan } from '../lib/scanStore';
 import { useSettings } from '../lib/settings';
 import { colors } from '../theme';
@@ -29,7 +29,7 @@ const isNotReady = (e: unknown) => String(e).includes('CameraNotReady');
 export default function ScanScreen() {
   const { m } = useI18n();
   const { settings } = useSettings();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission] = useCameraAccess();
   const camera = useRef<CameraView>(null);
   const { width: W, height: H } = useWindowDimensions();
   const guide = Math.min(CIRCLE * W, CIRCLE_MAX_HEIGHT * H); // on-screen circle diameter
