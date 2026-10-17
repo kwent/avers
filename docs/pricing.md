@@ -9,7 +9,9 @@ Plain code, no AI: `backend/app/pricing.py` (the rules), `backend/app/pipeline.p
   when both sides know it), confirmed by the photos looking like the listing's (`app/matching.py`). A listing
   still for sale is an asking price; one no longer in stock counts as sold.
 - **Numista**, only when the catalog has no listing of the coin: Numista's price for each grade, treated like
-  listings.
+  listings. Only the issue of the year and mint read counts: never another mint's (20 centesimi 1863: 4-7 € at
+  Milan, a 461-piece Turin pattern at 92 500 €), and the most struck issue of the year before a proof. A date
+  that cannot be read is asked for when Numista knows the type, since the year decides the issue.
 - The catalog is read again every week (new listings, new prices, listings gone out of stock), so recent prices
   reach the estimates without a redeploy.
 - Nothing else. No listing and no Numista price means no price: the app says so and shows the metal value as a

@@ -127,6 +127,9 @@ const en: Messages = {
     yearTitle: (year) => `Is it really ${year}?`,
     yearBody: (year) =>
       `The catalog does not know this coin in ${year}. Worn dates are easy to misread: which year do you see on the coin?`,
+    yearUnreadTitle: 'Which year?',
+    yearUnreadBody:
+      'The date cannot be read on the photos. The price depends on the year: which one do you see on the coin?',
     yearIs: (year) => `It is ${year}`,
     yearKeep: (year) => `Yes, it is ${year}`,
     yearOther: 'Other year',

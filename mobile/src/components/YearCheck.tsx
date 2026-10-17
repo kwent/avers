@@ -5,15 +5,15 @@ import { colors } from '../theme';
 import { Button, Notice } from './ui';
 
 /**
- * The year read has no catalog listing: rather than guess, ask which year the coin shows. Offers the catalogued
- * years a worn date is usually mistaken for, the year as read, and any other year.
+ * The year read has no catalog listing, or could not be read (read null): rather than guess, ask which year the
+ * coin shows. Offers the catalogued years a worn date is usually mistaken for, the year as read, and any other year.
  */
 export function YearCheck({
   read,
   suggestions,
   onYear,
 }: {
-  read: number;
+  read: number | null;
   suggestions: number[];
   onYear: (year: number) => Promise<void>;
 }) {
@@ -33,8 +33,8 @@ export function YearCheck({
 
   return (
     <View className="gap-3" testID="year-check">
-      <Notice tone="warning" title={m.estimate.yearTitle(read)}>
-        {m.estimate.yearBody(read)}
+      <Notice tone="warning" title={read ? m.estimate.yearTitle(read) : m.estimate.yearUnreadTitle}>
+        {read ? m.estimate.yearBody(read) : m.estimate.yearUnreadBody}
       </Notice>
       {suggestions.map((y) => (
         <Button
@@ -46,14 +46,16 @@ export function YearCheck({
           onPress={() => pick(y)}
         />
       ))}
-      <Button
-        testID="year-keep"
-        variant="secondary"
-        title={m.estimate.yearKeep(read)}
-        loading={busy === read}
-        disabled={busy != null}
-        onPress={() => pick(read)}
-      />
+      {read != null && (
+        <Button
+          testID="year-keep"
+          variant="secondary"
+          title={m.estimate.yearKeep(read)}
+          loading={busy === read}
+          disabled={busy != null}
+          onPress={() => pick(read)}
+        />
+      )}
       <View className="flex-row items-center gap-3">
         <TextInput
           testID="year-other"

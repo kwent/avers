@@ -146,3 +146,133 @@ def test_one_old_listing_is_weighed_with_numistas_current_prices(monkeypatch, fa
     finally:
         db.execute("DELETE FROM coins WHERE id = ?", (coin_id,))
         db.commit()
+
+
+def test_text_search_falls_back_to_the_denomination(monkeypatch):
+    """The reading's type name is free text ("Femme en costume traditionnel"): Numista finds nothing with it."""
+    schilling = {"id": 1941, "title": "10 schilling (argent)", "min_year": 1957, "max_year": 1973}
+    asked = []
+
+    def get(store, path, params, max_age):
+        asked.append(params.get("q"))
+        if path == "/issuers":
+            return {"issuers": [{"code": "austria", "name": "Autriche"}]}
+        if path == "/types":
+            return {"types": [schilling] if params["q"] == "10 Schilling" else []}
+        return None
+
+    monkeypatch.setattr(numista, "KEY", "test")
+    monkeypatch.setattr(numista, "_get", get)
+    monkeypatch.setattr(numista, "_lists", {})
+    coin = make_coin(
+        country_name="Autriche", year=1972, mint_mark=None, denomination="10 Schilling",
+        type_name="Femme en costume traditionnel", catalog_refs=[],
+    )  # fmt: skip
+    assert numista.find_type(None, coin)["id"] == 1941
+    assert [q for q in asked if q] == [
+        "10 Schilling Femme en costume traditionnel",
+        "10 Schilling femme costume traditionnel",
+        "10 Schilling",
+    ]
+
+
+def test_same_year_types_are_told_apart_by_the_mint_read(monkeypatch):
+    """20 centesimi 1863 M BN: Numista lists a 461-piece Turin type first, then the 27-million Milan/Turin one."""
+    rare = {"id": 46214, "title": "20 centesimi Victor-Emmanuel II", "min_year": 1863, "max_year": 1863}
+    common = {"id": 4257, "title": "20 centesimi Victor-Emmanuel II", "min_year": 1863, "max_year": 1867}
+    issues = {
+        "/types/46214/issues": [{"id": 1, "year": 1863, "mint_letter": "T NB", "mintage": 461}],
+        "/types/4257/issues": [
+            {"id": 2, "year": 1863, "mint_letter": "T BN", "mintage": 6_288_572},
+            {"id": 3, "year": 1863, "mint_letter": "M BN", "mintage": 27_844_963},
+        ],
+    }
+
+    def get(store, path, params, max_age):
+        if path == "/types":
+            return {"types": [rare, common]}
+        return issues.get(path)
+
+    monkeypatch.setattr(numista, "KEY", "test")
+    monkeypatch.setattr(numista, "_get", get)
+    monkeypatch.setattr(numista, "_lists", {})
+    coin = make_coin(
+        country_name="Italie", year=1863, mint_mark="M", denomination="20 Centesimi",
+        type_name="Vittorio Emanuele II", catalog_refs=[],
+    )  # fmt: skip
+    assert numista.find_type(None, coin)["id"] == 4257
+    assert numista.issue_for(issues["/types/4257/issues"], 1863, "M")["id"] == 3  # "M" is the "M BN" issue
+    assert numista.issue_for(issues["/types/46214/issues"], 1863, "M") is None  # never another mint's price
+    assert numista.issue_for(issues["/types/4257/issues"], 1863, None)["id"] == 3  # the most struck first
+
+
+def test_unknown_coin_with_no_year_evidence_is_not_asked_for_its_year(monkeypatch):
+    """No Numista type and no catalog year to suggest: an empty question would only block the estimate."""
+    monkeypatch.setattr(numista, "KEY", "")
+    est = estimate_of(monkeypatch, country_iso="AT", country_name="Autriche", year=1972, catalog_refs=[])
+    assert est["year_check"] is None
+    assert est["melt"]["value"] > 0  # the gold floor is still shown
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Argent 640‰ (Copper .360)", ("silver", 0.64)),
+        ("Argent 835‰", ("silver", 0.835)),
+        ("Or 900‰", ("gold", 0.9)),
+        ("Silver (.925)", ("silver", 0.925)),
+        ("Nickel plaqué cupronickel", (None, None)),
+        ("Argent", (None, None)),  # no fineness: no melt value rather than a guessed one
+        (None, (None, None)),
+    ],
+)
+def test_composition(text, expected):
+    assert numista.composition(text) == expected
+
+
+def test_numista_weight_and_fineness_give_the_melt_value(monkeypatch, fake_numista):
+    """10 Schilling 1972 read without its weight or fineness: Numista's type gives the silver floor."""
+    real_get = numista._get
+
+    def get(store, path, params, max_age):
+        if path == "/types/1711":
+            return {"weight": 7.5, "composition": {"text": "Argent 640‰ (Copper .360)"}}
+        return real_get(store, path, params, max_age)
+
+    monkeypatch.setattr(numista, "_get", get)
+    est = estimate_of(monkeypatch, year=1851, metal="silver", weight_g=None, fineness=None, catalog_refs=[])
+    assert (est["melt"]["weight_g"], est["melt"]["fineness"]) == (7.5, 0.64)
+    assert est["identification"]["weight_g"] == 7.5
+    # with no catalog listing the Numista type is the reference: a coin misread as nickel is still silver
+    est = estimate_of(monkeypatch, year=1851, metal="nickel", weight_g=5.2, fineness=None, catalog_refs=[])
+    assert (est["melt"]["metal"], est["melt"]["weight_g"], est["melt"]["fineness"]) == ("silver", 7.5, 0.64)
+
+
+def test_a_misquoted_gadoury_number_does_not_name_another_type(monkeypatch):
+    """1 centime Cérès quoted as G. 78 (the 1 centime Dupré): the text search's Cérès type is taken."""
+    dupre = {"id": 1118, "title": "1 centime Dupré (IIe république)", "min_year": 1848, "max_year": 1851}
+    ceres = {"id": 1606, "title": "1 centime Cérès", "min_year": 1872, "max_year": 1897}
+
+    def get(store, path, params, max_age):
+        if path == "/catalogues":
+            return {"catalogues": [{"id": 109, "title": "Monnaies françaises", "author": "Gadoury"}]}
+        if path == "/types":
+            return {"types": [dupre] if "number" in params else [ceres]}
+        return None
+
+    monkeypatch.setattr(numista, "KEY", "test")
+    monkeypatch.setattr(numista, "_get", get)
+    monkeypatch.setattr(numista, "_lists", {})
+    coin = make_coin(
+        year=None, mint_mark=None, denomination="1 centime", type_name="Cérès (IIIe République)", catalog_refs=["G. 76"]
+    )  # fmt: skip
+    assert numista.find_type(None, coin)["id"] == 1606
+
+
+def test_unread_date_asks_for_the_year_then_prices_it(monkeypatch, fake_numista):
+    est = estimate_of(monkeypatch, year=None, title="10 Francs Cérès", catalog_refs=[])
+    assert est["year_check"] == {"read": None, "suggestions": [1850, 1851, 1895]}  # Numista's years, few enough
+    assert est["valuation"] is None
+    fixed = client.post("/estimate/year", json={"estimate": est, "year": 1851}).json()
+    assert fixed["year_check"] is None and fixed["identification"]["title"] == "10 Francs Cérès 1851"
+    assert fixed["valuation"]["source"] == "numista"

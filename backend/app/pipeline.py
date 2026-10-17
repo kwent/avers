@@ -41,6 +41,31 @@ def _apply_catalog_facts(coin: identify.CoinIdentification, row: sqlite3.Row) ->
         coin.catalog_refs = [f"G. {ref}" for ref in sorted(listed)] + others
 
 
+def _apply_numista_facts(
+    coin: identify.CoinIdentification, ref: dict | None, reference: bool, melt: dict | None
+) -> bool:
+    """Numista's metal, weight and fineness for a precious-metal type (any country, unlike the catalog). With no
+    catalog match its type is the reference, as a matched listing is: its facts replace the reading's (10 Schilling
+    1972 read as nickel; the silver type is 1957-1973). Otherwise they only fill a reading that left them out, when
+    the metals agree. True when the coin changed."""
+    if not ref or not ref.get("metal"):
+        return False
+    if reference:
+        facts = {"metal": ref["metal"], "weight_g": ref.get("weight_g") or coin.weight_g, "fineness": ref["fineness"]}
+    elif melt is None and coin.metal in (ref["metal"], "unknown", "other"):
+        facts = {
+            "metal": ref["metal"],
+            "weight_g": coin.weight_g or ref.get("weight_g"),
+            "fineness": coin.fineness or ref["fineness"],
+        }
+    else:
+        return False
+    changed = any(getattr(coin, k) != v for k, v in facts.items())
+    for k, v in facts.items():
+        setattr(coin, k, v)
+    return changed
+
+
 def _listing_points(rows: list[sqlite3.Row], currency: str) -> list[pricing.Point]:
     """Catalog listings of the coin as price points (asking prices, or sold when out of stock)."""
     points = []
@@ -86,6 +111,8 @@ def _numista_points(ref: dict | None) -> list[pricing.Point]:
 def set_year(coin: identify.CoinIdentification, year: int) -> None:
     if coin.year and coin.title:  # the title was written from the reading: carry the new year into it
         coin.title = coin.title.replace(str(coin.year), str(year))
+    elif coin.title:  # the date was not read: the title had none
+        coin.title = f"{coin.title} {year}"
     coin.year = year
 
 
@@ -235,8 +262,11 @@ def price(
         lookup = coin.model_copy(update={"catalog_refs": matching.type_refs(src.catalog_db, coin)})
     ref = numista.lookup(src.store, lookup, currency)
     result["numista"] = ref
+    if _apply_numista_facts(coin, ref, reference=not match, melt=melt):
+        melt = result["melt"] = metals.melt_value(coin.metal, coin.weight_g, coin.fineness, currency)
+        result["identification"] = coin.model_dump()
     if not same:  # no catalog listing of this exact coin: Numista's prices, never a made-up one
-        result["year_check"] = years.check(src.catalog_db, coin, ref) if coin.year and not year_confirmed else None
+        result["year_check"] = None if year_confirmed else years.check(src.catalog_db, coin, ref)
         if result["year_check"]:
             return result  # no price until the user says which year the coin shows
         points, source = _numista_points(ref), "numista"

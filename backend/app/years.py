@@ -39,13 +39,17 @@ def catalog_suggestions(db: sqlite3.Connection, coin: CoinIdentification, limit:
 
 
 def check(catalog_db: sqlite3.Connection, coin: CoinIdentification, ref: dict | None) -> dict | None:
-    """Ask the user which year the coin shows when the year read may be wrong. Numista lists the years its type was
-    really struck: a year it knows is not questioned. Suggestions pool Numista's years and the catalog's, a commonly
-    misread digit away first, then the nearest struck years."""
+    """Ask the user which year the coin shows when the year read may be wrong, or could not be read. Numista lists
+    the years its type was really struck: a year it knows is not questioned. Suggestions pool Numista's years and
+    the catalog's, a commonly misread digit away first, then the nearest struck years."""
     numista_years = ref["years"] if ref else []
+    if not coin.year:  # a worn date: the year is what finds the price, once Numista knows the type
+        return {"read": None, "suggestions": numista_years if len(numista_years) <= 3 else []} if ref else None
     if coin.year in numista_years:
         return None
     pool = set(numista_years) | set(catalog_suggestions(catalog_db, coin))
+    if not pool:
+        return None  # nothing says the year is wrong (or which it could be): asking would only block the estimate
     ranks = {y: misread_rank(coin.year, y) for y in pool}
     confusable = sorted((y for y in pool if ranks[y] is not None), key=ranks.get)
     nearest = sorted((y for y in pool if ranks[y] is None), key=lambda y: abs(y - coin.year))

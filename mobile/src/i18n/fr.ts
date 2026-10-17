@@ -134,6 +134,9 @@ const fr = {
     yearTitle: (year: number) => `Est-ce bien ${year} ?`,
     yearBody: (year: number) =>
       `Le catalogue ne connaît pas cette pièce en ${year}. Une date usée se lit mal : quelle année voyez-vous sur la pièce ?`,
+    yearUnreadTitle: 'Quelle année ?',
+    yearUnreadBody:
+      'La date ne se lit pas sur les photos. Le prix dépend de l’année : laquelle voyez-vous sur la pièce ?',
     yearIs: (year: number) => `C’est ${year}`,
     yearKeep: (year: number) => `Oui, c’est bien ${year}`,
     yearOther: 'Autre année',

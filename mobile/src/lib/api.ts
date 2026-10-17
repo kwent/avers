@@ -125,8 +125,8 @@ export type Estimate = {
     /** Numista's price per grade (our grade codes) */
     prices?: Record<string, number>;
   } | null;
-  /** set when the year read has no catalog listing: the app asks which year the coin shows */
-  year_check?: { read: number; suggestions: number[] } | null;
+  /** set when the year read has no catalog listing, or could not be read (read: null): the app asks which year */
+  year_check?: { read: number | null; suggestions: number[] } | null;
 };
 
 export type Item = {
