@@ -216,6 +216,12 @@ def lookup(store, coin: CoinIdentification, currency: str) -> dict | None:
         "issue": issue and {"id": issue["id"], "mintage": issue.get("mintage"), "mint": issue.get("mint_letter")},
         "prices": prices(store, t["id"], issue["id"], currency) if issue else {},
         "weight_g": details.get("weight"),
+        # Numista's photos of the type, to compare with the coin in hand (credited as Numista asks)
+        "images": [
+            {"url": side["picture"], "credit": side.get("picture_copyright")}
+            for side in (details.get("obverse"), details.get("reverse"))
+            if side and side.get("picture")
+        ],
         "metal": metal,
         "fineness": fineness,
     }

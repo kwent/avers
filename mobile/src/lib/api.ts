@@ -21,6 +21,8 @@ export type Identification = {
   weight_g: number | null;
   catalog_refs: string[];
   grade: Grade;
+  /** the next grade up when the coin sits between two (grade TB, grade_upper TTB) */
+  grade_upper?: Grade | null;
   grade_notes: string;
   confidence: number;
   authenticity_notes: string | null;
@@ -124,6 +126,8 @@ export type Estimate = {
     issue: { id: number; mintage: number | null; mint: string | null } | null;
     /** Numista's price per grade (our grade codes) */
     prices?: Record<string, number>;
+    /** Numista's photos of the type (obverse, reverse), with their photographer */
+    images?: { url: string; credit: string | null }[];
   } | null;
   /** set when the year read has no catalog listing, or could not be read (read: null): the app asks which year */
   year_check?: { read: number | null; suggestions: number[] } | null;

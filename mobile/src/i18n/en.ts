@@ -65,7 +65,13 @@ const en: Messages = {
     retake: 'Retake photos',
     notCoin: 'This is not a coin',
     unidentifiable: 'Avers does not recognize this coin',
-    unidentifiableHint: 'Rather than guess, Avers prefers not to say. Retake both sides, sharp and in good light.',
+    unidentifiableHint: 'Rather than guess, Avers prefers not to say. For better photos:',
+    photoTips: [
+      'Take the coin out of its holder or flip: the plastic causes reflections.',
+      'Daylight, no flash, no glare on the metal.',
+      'Plain background, coin centered and sharp, filling the circle.',
+      'Photograph both sides.',
+    ],
     unidentifiableFallback: 'What is visible is not enough for a reliable identification.',
     add: 'Add to my collection',
     scanAnother: 'Estimate another coin',
@@ -139,6 +145,9 @@ const en: Messages = {
     numistaWhy:
       'No listing of this coin in our catalog: this price is Numista’s estimate, a collectors’ database. Check it with a dealer.',
     seeNumista: 'See on Numista',
+    referenceTitle: 'The reference coin',
+    referenceNote: (credit) =>
+      `Compare with your coin: is it the same one? Numista photos${credit ? ` (${credit})` : ''}.`,
     mintage: 'Mintage',
     noPrice: 'Exact price unknown: too few sales of this coin in the catalog to estimate it.',
     unknownPrice: 'Price unknown',

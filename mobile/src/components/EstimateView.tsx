@@ -41,7 +41,7 @@ function detailFields(est: Estimate, m: Messages, locale: string): Field[] {
       value: `${number(coin.weight_g, locale)} g`,
     },
     { id: 'refs', label: m.estimate.refs, value: coin.catalog_refs.join(', ') },
-    { id: 'grade', label: m.estimate.grade, value: gradeLabel(coin.grade, m) },
+    { id: 'grade', label: m.estimate.grade, value: gradeLabel(coin.grade, m, coin.grade_upper) },
     est.numista?.issue?.mintage != null && {
       id: 'mintage',
       label: m.estimate.mintage,
@@ -218,10 +218,32 @@ function EstimateContent({
 
         {v?.source === 'numista' && <Notice>{m.estimate.numistaWhy}</Notice>}
 
+        {!est.match && !!est.numista?.images?.length && (
+          // no catalog listing to show: Numista's photos of the type, to check it is the same coin
+          <Section
+            title={m.estimate.referenceTitle}
+            footer={m.estimate.referenceNote(
+              [...new Set(est.numista.images.map((i) => i.credit).filter(Boolean))].join(', '),
+            )}
+          >
+            <View className="flex-row justify-center gap-4 py-4" testID="numista-reference">
+              {est.numista.images.map((img, i) => (
+                <CoinWell
+                  key={img.url}
+                  size={well}
+                  uri={img.url}
+                  accessibilityLabel={`${m.estimate.referenceTitle} ${i + 1}`}
+                />
+              ))}
+            </View>
+          </Section>
+        )}
+
         {v && !!est.price_table?.length && (
           <PriceTable
             rows={est.price_table ?? []}
             grade={coin.grade}
+            upper={coin.grade_upper}
             currency={cur}
             explanation={explanation(est, m, locale)}
             sources={priceSources(est, m, locale)}

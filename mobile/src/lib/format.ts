@@ -35,8 +35,12 @@ export const metalName = (metal: string, m: Messages) => m.metals[metal as keyof
 export const gradeName = (grade: string, m: Messages) => m.grades[grade as keyof Messages['grades']] ?? grade;
 
 /** Grade as plain text, code first: "TTB (Très Très Beau)". */
-export const gradeLabel = (grade: string, m: Messages) =>
-  grade === 'unknown' ? gradeName(grade, m) : `${grade} (${gradeName(grade, m)})`;
+export const gradeLabel = (grade: string, m: Messages, upper?: string | null) =>
+  grade === 'unknown'
+    ? gradeName(grade, m)
+    : upper
+      ? `${grade}–${upper} (${gradeName(grade, m)} – ${gradeName(upper, m)})`
+      : `${grade} (${gradeName(grade, m)})`;
 
 export function sourceLabel(source: string): string {
   return { gadoury: 'Gadoury', numista: 'Numista' }[source] ?? source;

@@ -109,9 +109,15 @@ export default function ResultScreen() {
         </T>
         <T className="text-center">{coin.status_reason || m.result.unidentifiableFallback}</T>
         {!notCoin && (
-          <T tone="soft" className="text-center">
-            {m.result.unidentifiableHint}
-          </T>
+          <View className="gap-2" testID="photo-tips">
+            <T tone="soft">{m.result.unidentifiableHint}</T>
+            {m.result.photoTips.map((tip) => (
+              <View key={tip} className="flex-row gap-2">
+                <T tone="soft">•</T>
+                <T className="flex-1">{tip}</T>
+              </View>
+            ))}
+          </View>
         )}
         <Button title={m.result.retake} icon="camera" onPress={() => router.replace('/scan')} />
         <Button title={m.home.fromLibrary} variant="secondary" onPress={() => router.replace('/pick')} />

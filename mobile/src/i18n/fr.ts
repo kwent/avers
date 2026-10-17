@@ -69,8 +69,13 @@ const fr = {
     retake: 'Reprendre les photos',
     notCoin: 'Ce n’est pas une pièce de monnaie',
     unidentifiable: 'Avers ne reconnaît pas cette pièce',
-    unidentifiableHint:
-      'Plutôt que de deviner, Avers préfère ne rien affirmer. Reprenez les deux faces bien nettes, avec une bonne lumière.',
+    unidentifiableHint: 'Plutôt que de deviner, Avers préfère ne rien affirmer. Pour de meilleures photos :',
+    photoTips: [
+      'Sortez la pièce de son étui ou de sa pochette : le plastique fait des reflets.',
+      'Lumière du jour, sans flash, sans reflet sur le métal.',
+      'Fond uni, pièce au centre, bien nette, qui remplit le cercle.',
+      'Photographiez les deux faces.',
+    ],
     unidentifiableFallback: 'Les détails visibles ne suffisent pas pour une identification fiable.',
     add: 'Ajouter à ma collection',
     scanAnother: 'Estimer une autre pièce',
@@ -146,6 +151,9 @@ const fr = {
     numistaWhy:
       'Aucune annonce de cette pièce dans notre catalogue : ce prix est l’estimation de Numista, une base de collectionneurs. À confirmer auprès d’un marchand.',
     seeNumista: 'Voir sur Numista',
+    referenceTitle: 'La pièce de référence',
+    referenceNote: (credit: string) =>
+      `Comparez avec votre pièce : est-ce bien la même ? Photos Numista${credit ? ` (${credit})` : ''}.`,
     mintage: 'Tirage',
     noPrice: 'Prix exact inconnu : trop peu de ventes de cette pièce dans le catalogue pour l’estimer.',
     unknownPrice: 'Prix inconnu',

@@ -14,7 +14,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -94,6 +94,11 @@ class CoinIdentification(BaseModel):
         description="Known references, e.g. ['G. 1012', 'KM 770']; Gadoury refs as 'G. <n>'"
     )
     grade: Grade = Field(description="Estimated condition on the French scale (codes kept as-is in every language)")
+    grade_upper: Grade | None = Field(
+        default=None,
+        description="Only when the coin sits between two grades: the higher one, grade being the lower "
+        "(grade TB, grade_upper TTB). Otherwise null",
+    )
     grade_notes: str = Field(description="One sentence explaining the grade")
     confidence: float = Field(description="0-1 confidence in the identification")
     authenticity_notes: str | None = Field(description="Note if it may be a copy/replica/fantasy, else null")
@@ -116,7 +121,8 @@ First decide what the photos show, and never guess:
 
 When identified, give country, year, mint mark, denomination, type, metal, standard weight and fineness, and
 catalog references (Gadoury 'G. <n>' for French coins when known, KM). Estimate the grade on the French scale
-(B, TB, TTB, SUP, SPL, FDC) from visible wear and surface. A field you cannot read stays null even when the rest
+(B, TB, TTB, SUP, SPL, FDC) from visible wear and surface; when it sits between two grades, give the lower as
+grade and the higher as grade_upper rather than picking one. A field you cannot read stays null even when the rest
 is identified (e.g. a worn date). confidence is your honest probability that the identification is right.
 
 The photos are meant to be the obverse then the reverse, but the user may have swapped them or shot the same
@@ -197,7 +203,7 @@ def read(
         coin = _unescape(CoinIdentification.model_validate_json(text))
     except (KeyError, IndexError, ValidationError) as e:
         raise VisionError(f"no usable answer from {resp.get('model', body['model'])}") from e
-    return enforce_confidence(coin), resp
+    return enforce_confidence(tidy_grade(coin)), resp
 
 
 def _unescape(coin: CoinIdentification) -> CoinIdentification:
@@ -232,6 +238,20 @@ def needs_second_look(coin: CoinIdentification) -> bool:
     if not ESCALATION_MODELS or coin.status == "not_a_coin":
         return False
     return coin.status == "unidentifiable" or coin.confidence < ESCALATE_BELOW
+
+
+GRADE_ORDER = [g for g in get_args(Grade) if g != "unknown"]  # worst to best
+
+
+def tidy_grade(coin: CoinIdentification) -> CoinIdentification:
+    """A grade range is two neighbouring grades, lower first: anything else is read as the single grade."""
+    if coin.grade_upper and coin.grade in GRADE_ORDER and coin.grade_upper in GRADE_ORDER:
+        lo, hi = sorted((coin.grade, coin.grade_upper), key=GRADE_ORDER.index)
+        neighbours = GRADE_ORDER.index(hi) - GRADE_ORDER.index(lo) == 1
+        coin.grade, coin.grade_upper = (lo, hi) if neighbours else (coin.grade, None)
+    else:
+        coin.grade_upper = None
+    return coin
 
 
 def enforce_confidence(coin: CoinIdentification) -> CoinIdentification:

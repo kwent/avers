@@ -181,8 +181,8 @@ def reprice(previous: dict, src: Sources, year: int | None = None, grade: str | 
     coin = identify.CoinIdentification.model_validate(previous["identification"])
     if year and year != coin.year:
         set_year(coin, year)
-    if grade in pricing.GRADES:
-        coin.grade = grade
+    if grade in pricing.GRADES and grade != coin.grade:  # the user graded it: one grade, no range
+        coin.grade, coin.grade_upper = grade, None
     names = [n for n in (previous["photos"]["front"], previous["photos"]["back"]) if n]
     queries = []
     if src.index is not None:
@@ -287,7 +287,7 @@ def price(
     table = pricing.price_table(points, melt_now)
     result["price_table"] = [asdict(r) for r in table]
     uncertain = pricing.low_confidence(points)
-    est = pricing.estimate(table, coin.grade, melt_now, uncertain)
+    est = pricing.estimate(table, coin.grade, melt_now, uncertain, upper=coin.grade_upper)
     if est is not None:
         sale_years = [p.year for p in points if p.year]
         result["valuation"] = {

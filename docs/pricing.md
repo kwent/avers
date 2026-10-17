@@ -46,7 +46,8 @@ Every grade's shop price is at least the metal value + 5 %.
 ## 4. The estimate for the coin's grade
 
 - **Shop price** (what a dealer would ask): from half a grade below to half a grade above the coin's grade
-  (geometric midpoints with the neighbouring grades).
+  (geometric midpoints with the neighbouring grades). A coin read between two grades ("TB–TTB") spans the two
+  grades' prices instead; a grade the user sets is a single grade again.
 - **Between private collectors** (the big number in the app): 80 % of the shop price, as dealers buy about 20 %
   under their selling price. Never below the metal value.
 - **Few or old prices** (a single price, or the newest 7+ years old): Numista's current price per grade is added

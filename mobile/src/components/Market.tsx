@@ -11,12 +11,15 @@ import { CoinWell, cn, Row, Section, T } from './ui';
 export function PriceTable({
   rows,
   grade,
+  upper,
   currency,
   explanation,
   sources = [],
 }: {
   rows: GradePrice[];
   grade: string;
+  /** the next grade up when the coin sits between two: both rows are the coin's */
+  upper?: string | null;
   currency: string;
   explanation: string;
   /** the prices the table rests on (PriceSources), listed under it */
@@ -53,7 +56,7 @@ export function PriceTable({
         </T>
       </View>
       {known.map((r) => {
-        const mine = r.grade === grade;
+        const mine = r.grade === grade || r.grade === upper;
         return (
           <View
             key={r.grade}

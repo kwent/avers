@@ -236,13 +236,19 @@ def test_numista_weight_and_fineness_give_the_melt_value(monkeypatch, fake_numis
 
     def get(store, path, params, max_age):
         if path == "/types/1711":
-            return {"weight": 7.5, "composition": {"text": "Argent 640‰ (Copper .360)"}}
+            return {
+                "weight": 7.5,
+                "composition": {"text": "Argent 640‰ (Copper .360)"},
+                "obverse": {"picture": "https://numista.example/o.jpg", "picture_copyright": "A. Collector"},
+                "reverse": {"thumbnail": "https://numista.example/r-180.jpg"},  # no full picture: left out
+            }
         return real_get(store, path, params, max_age)
 
     monkeypatch.setattr(numista, "_get", get)
     est = estimate_of(monkeypatch, year=1851, metal="silver", weight_g=None, fineness=None, catalog_refs=[])
     assert (est["melt"]["weight_g"], est["melt"]["fineness"]) == (7.5, 0.64)
     assert est["identification"]["weight_g"] == 7.5
+    assert est["numista"]["images"] == [{"url": "https://numista.example/o.jpg", "credit": "A. Collector"}]
     # with no catalog listing the Numista type is the reference: a coin misread as nickel is still silver
     est = estimate_of(monkeypatch, year=1851, metal="nickel", weight_g=5.2, fineness=None, catalog_refs=[])
     assert (est["melt"]["metal"], est["melt"]["weight_g"], est["melt"]["fineness"]) == ("silver", 7.5, 0.64)

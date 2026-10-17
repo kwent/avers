@@ -98,3 +98,12 @@ def test_one_old_price_gives_a_wider_range_downward():
     sure, unsure = pricing.estimate(rows, "TTB", None), pricing.estimate(rows, "TTB", None, uncertain=True)
     assert unsure.retail_high == sure.retail_high
     assert unsure.retail_low == pytest.approx(sure.retail_low / pricing.LOW_CONFIDENCE_SPREAD, abs=1)
+
+
+def test_between_two_grades_spans_their_prices():
+    rows = list(table([pt(100, "TB"), pt(200, "TTB")]).values())
+    one = pricing.estimate(rows, "TB", None)
+    both = pricing.estimate(rows, "TB", None, upper="TTB")
+    assert (both.retail_low, both.retail_high) == (100, 200)  # TB-TTB: from the TB price to the TTB price
+    assert one.retail_high < both.retail_high
+    assert pricing.estimate(rows, "TB", None, upper="SUP") == one  # not the next grade: the single grade

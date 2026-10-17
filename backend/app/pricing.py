@@ -154,10 +154,15 @@ class Estimate:
 
 
 def estimate(
-    rows: list[GradePrice], grade: str | None, melt_now: float | None, uncertain: bool = False
+    rows: list[GradePrice],
+    grade: str | None,
+    melt_now: float | None,
+    uncertain: bool = False,
+    upper: str | None = None,
 ) -> Estimate | None:
-    """Range for the estimated grade: from half a grade below to half a grade above, never under melt. `uncertain`
-    (low_confidence data): the range reaches down by LOW_CONFIDENCE_SPREAD."""
+    """Range for the estimated grade: from half a grade below to half a grade above, never under melt. A coin read
+    between two grades (`upper`, the next one up) spans their two prices instead. `uncertain` (low_confidence data):
+    the range reaches down by LOW_CONFIDENCE_SPREAD."""
     if grade not in GRADES:
         return None
     i = GRADES.index(grade)
@@ -177,9 +182,12 @@ def estimate(
         )
     below = rows[i - 1].retail if i > 0 and rows[i - 1].retail else row.retail
     above = rows[i + 1].retail if i + 1 < len(rows) and rows[i + 1].retail else row.retail
-    # geometric midpoints between grades; listings do not always rise with the grade (an old listing with a big
-    # premium can top a better coin's), so the range is ordered
-    retail_low, retail_high = sorted(((below * row.retail) ** 0.5, (above * row.retail) ** 0.5))
+    if upper is not None and i + 1 < len(rows) and GRADES[i + 1] == upper and rows[i + 1].retail:
+        retail_low, retail_high = sorted((row.retail, rows[i + 1].retail))  # TB-TTB: from the TB to the TTB price
+    else:
+        # geometric midpoints between grades; listings do not always rise with the grade (an old listing with a big
+        # premium can top a better coin's), so the range is ordered
+        retail_low, retail_high = sorted(((below * row.retail) ** 0.5, (above * row.retail) ** 0.5))
     floor = melt_now or 0.0
     if uncertain:
         retail_low = max(retail_low / LOW_CONFIDENCE_SPREAD, floor * MELT_PREMIUM)

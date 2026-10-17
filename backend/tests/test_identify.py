@@ -115,3 +115,18 @@ def test_a_failed_second_look_tries_the_next_model_then_keeps_the_first_reading(
 def test_second_look_can_be_turned_off(gateway, monkeypatch):
     monkeypatch.setattr(identify, "ESCALATION_MODELS", [])
     assert not identify.needs_second_look(make_coin(status="unidentifiable", confidence=0.1))
+
+
+@pytest.mark.parametrize(
+    "grade, upper, expected",
+    [
+        ("TB", "TTB", ("TB", "TTB")),
+        ("TTB", "TB", ("TB", "TTB")),  # put in order
+        ("TB", "SUP", ("TB", None)),  # not neighbours: the grade alone
+        ("TB", "TB", ("TB", None)),
+        ("unknown", "TB", ("unknown", None)),
+    ],
+)
+def test_grade_range_is_two_neighbouring_grades(grade, upper, expected):
+    coin = identify.tidy_grade(make_coin(grade=grade, grade_upper=upper))
+    assert (coin.grade, coin.grade_upper) == expected
