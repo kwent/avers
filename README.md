@@ -36,7 +36,8 @@ data/     local only (git-ignored): catalog database, images, collection, upload
 
 ```
 phone ──photos──▶ POST /estimate
-                   ├─ vision model: read the photos (or refuse: not a coin / unidentifiable)   ← the only AI call
+                   ├─ vision model: read the photos (or refuse: not a coin / unidentifiable)   ← the only AI step;
+                   │    a stronger model takes a second look when the reading is unsure
                    ├─ matching (plain rules): catalog listings with the same country, value, year, mint,
                    │    reference — confirmed by visual similarity (local DINOv2 over catalog photos,
                    │    computed while the vision model reads the photos)
@@ -100,8 +101,11 @@ Lexend type ramp, spacing, radius) live in `mobile/src/theme/tokens.js` and feed
   and every change in `listing_history`). Each instance applies them to a temp copy of the shipped catalog at start
   (`app/catalog_updates.py`). Redeploying with a fresh local catalog folds them in.
 - **Numista** (optional, free API plan): when the catalog has no listing of a coin, `app/numista.py` looks its type
-  up (by Gadoury number) for the years and mints really struck, the mintage and its price per grade, which goes
-  through the same pricing as catalog listings (grade table, melt floor, private-resale share).
+  up (by Gadoury number, else by name; types sharing the year are told apart by the mint read, patterns last) for
+  the years and mints really struck, the mintage and its price per grade, which goes through the same pricing as
+  catalog listings (grade table, melt floor, private-resale share). With no catalog listing, the type's weight and
+  alloy are the reference for the metal value too. This is what values coins from countries the catalog has few
+  listings for.
   Answers are cached in the database; `NUMISTA_MAX_PER_MONTH` (default 1800) keeps it under the free quota.
 - **Web app** (`mobile/`, Vercel project `avers`): the Expo web export, installable from Safari ("Add to Home Screen").
 
@@ -141,6 +145,12 @@ selects the right catalog listing, plus cost and latency:
 ```bash
 cd backend && AI_GATEWAY_API_KEY=... uv run python -m bench.models google/gemini-3.5-flash-lite anthropic/claude-sonnet-5.5
 ```
+
+Catalog photos are clean; real coins are worn, dark or behind a holder's plastic, and that is where the small model
+slips, sometimes with confidence (a worn 1 centime Cérès read as Napoléon III at 0.85-0.9, three times in a row). A
+reading that is unidentifiable or below `VISION_ESCALATE_BELOW` (0.95) is read again by the first of
+`VISION_ESCALATION_MODELS` that answers (Gemini 3.8 Flash, then Opus), and that reading is kept. It adds 10-30 s to
+those estimates only.
 
 ## Disclaimer
 

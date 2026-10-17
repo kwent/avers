@@ -1,13 +1,16 @@
-"""The one vision-model call per estimate: read the coin from the photos (or refuse: not a coin / unidentifiable).
+"""The vision-model reading of an estimate: read the coin from the photos (or refuse: not a coin / unidentifiable).
 
 Goes through the Vercel AI Gateway (OpenAI-compatible API), so the model is a setting, not code. The default was
-picked with bench/models.py: Gemini Flash-Lite reads coins as well as the large models here, at a fraction of
-the cost and latency; the gateway falls back to the next model if it fails.
+picked with bench/models.py: Gemini Flash-Lite reads clean coins as well as the large models here, at a fraction of
+the cost and latency; the gateway falls back to the next model if it fails. Worn or glary real-life coins are where
+it slips (a 1 centime Cérès read as Napoléon III, 3 times out of 3, at 0.85-0.9): a reading it is not sure of gets
+a second look by a stronger model, whose reading is kept.
 """
 
 import base64
 import html
 import json
+import logging
 import os
 import urllib.error
 import urllib.request
@@ -20,7 +23,18 @@ from app.http import SSL_CTX
 GATEWAY_URL = os.environ.get("AI_GATEWAY_URL", "https://ai-gateway.vercel.sh/v1")
 MODEL = os.environ.get("VISION_MODEL", "google/gemini-3.5-flash-lite")
 FALLBACK_MODELS = [m for m in os.environ.get("VISION_FALLBACK_MODELS", "google/gemini-3.8-flash").split(",") if m]
+# Second look when the first reading is unidentifiable or below ESCALATE_BELOW: the first of these models that
+# gives a usable answer (empty: off). Gemini 3.8 Flash, then Opus if it fails: both read the worn 1 centime Cérès
+# right 3 times out of 3 where Flash-Lite said Napoléon III.
+ESCALATION_MODELS = [
+    m
+    for m in os.environ.get("VISION_ESCALATION_MODELS", "google/gemini-3.8-flash,anthropic/claude-opus-5.5").split(",")
+    if m
+]
+ESCALATE_BELOW = float(os.environ.get("VISION_ESCALATE_BELOW", "0.95"))
 TIMEOUT = 90
+
+log = logging.getLogger(__name__)
 
 Metal = Literal[
     "gold",
@@ -197,7 +211,27 @@ def _unescape(coin: CoinIdentification) -> CoinIdentification:
 
 
 def identify(images: list[tuple[bytes, str]], language: str = DEFAULT_LANGUAGE) -> CoinIdentification:
-    return read(images, language)[0]
+    coin = read(images, language)[0]
+    if not needs_second_look(coin):
+        return coin
+    for model in ESCALATION_MODELS:
+        try:
+            second = read(images, language, model=model)[0]
+        except VisionError as e:
+            log.warning("second look by %s failed: %s", model, e)
+            continue
+        log.warning("second look by %s: %s %.2f -> %s %.2f", model, coin.status, coin.confidence,
+                    second.status, second.confidence)  # fmt: skip
+        return second
+    return coin  # no second look came through: the first reading stands
+
+
+def needs_second_look(coin: CoinIdentification) -> bool:
+    """A coin the first model could not name, or named without being sure. Not "not a coin": that is not a
+    matter of reading skill."""
+    if not ESCALATION_MODELS or coin.status == "not_a_coin":
+        return False
+    return coin.status == "unidentifiable" or coin.confidence < ESCALATE_BELOW
 
 
 def enforce_confidence(coin: CoinIdentification) -> CoinIdentification:

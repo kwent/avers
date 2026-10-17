@@ -8,7 +8,7 @@ from tests.test_catalog import make_coin
 @pytest.fixture
 def gateway(monkeypatch):
     """Capture the request body; answer with `reply` (a message content string)."""
-    state = {"reply": make_coin().model_dump_json()}
+    state = {"reply": make_coin(confidence=0.99).model_dump_json()}  # sure: no second look
 
     def fake_request(body):
         state["body"] = body
@@ -70,3 +70,48 @@ def test_html_entities_are_decoded(gateway):
     gateway["reply"] = make_coin(title="10 Francs C&#233;r&#232;s", catalog_refs=["G.&#160;1012"]).model_dump_json()
     coin = identify.identify([(b"x", "image/jpeg")])
     assert coin.title == "10 Francs Cérès" and coin.catalog_refs == ["G.\xa01012"]
+
+
+@pytest.mark.parametrize(
+    "first, second_look",
+    [
+        (dict(status="identified", confidence=0.99), False),
+        (dict(status="identified", confidence=0.85), True),  # sure enough to name it, not to be trusted
+        (dict(status="unidentifiable", confidence=0.4), True),
+        (dict(status="not_a_coin", confidence=0.0), False),  # a glass stays a glass
+    ],
+)
+def test_unsure_readings_get_a_second_look(gateway, monkeypatch, first, second_look):
+    models = []
+
+    def fake_request(body):
+        models.append(body["model"])
+        coin = make_coin(**first) if len(models) == 1 else make_coin(title="1 Centime Cérès", confidence=0.95)
+        return {"model": body["model"], "choices": [{"message": {"content": coin.model_dump_json()}}]}
+
+    monkeypatch.setattr(identify, "_request", fake_request)
+    coin = identify.identify([(b"x", "image/jpeg")])
+    assert models == [identify.MODEL, identify.ESCALATION_MODELS[0]][: 1 + second_look]
+    assert (coin.title == "1 Centime Cérès") is second_look  # the stronger model's reading is kept
+
+
+def test_a_failed_second_look_tries_the_next_model_then_keeps_the_first_reading(monkeypatch):
+    calls = []
+
+    def fake_request(body):
+        calls.append(body["model"])
+        if len(calls) > 1:
+            raise identify.VisionError("no usable answer")
+        return {
+            "model": body["model"],
+            "choices": [{"message": {"content": make_coin(confidence=0.8).model_dump_json()}}],
+        }
+
+    monkeypatch.setattr(identify, "_request", fake_request)
+    assert identify.identify([(b"x", "image/jpeg")]).confidence == 0.8
+    assert calls == [identify.MODEL, *identify.ESCALATION_MODELS]
+
+
+def test_second_look_can_be_turned_off(gateway, monkeypatch):
+    monkeypatch.setattr(identify, "ESCALATION_MODELS", [])
+    assert not identify.needs_second_look(make_coin(status="unidentifiable", confidence=0.1))
