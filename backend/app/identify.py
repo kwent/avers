@@ -3,7 +3,7 @@
 Goes through the Vercel AI Gateway (OpenAI-compatible API), so the model is a setting, not code. The default was
 picked with bench/models.py: Gemini Flash-Lite reads clean coins as well as the large models here, at a fraction of
 the cost and latency; the gateway falls back to the next model if it fails. Worn or glary real-life coins are where
-it slips (a 1 centime Cérès read as Napoléon III, 3 times out of 3, at 0.85-0.9): a reading it is not sure of gets
+it slips (a 1 centime Cérès read as Napoléon III every time, at 0.8-0.95): a reading it is not sure of gets
 a second look by a stronger model, whose reading is kept.
 """
 
@@ -31,7 +31,7 @@ ESCALATION_MODELS = [
     for m in os.environ.get("VISION_ESCALATION_MODELS", "google/gemini-3.8-flash,anthropic/claude-opus-5.5").split(",")
     if m
 ]
-ESCALATE_BELOW = float(os.environ.get("VISION_ESCALATE_BELOW", "0.95"))
+ESCALATE_BELOW = float(os.environ.get("VISION_ESCALATE_BELOW", "0.99"))
 TIMEOUT = 90
 
 log = logging.getLogger(__name__)

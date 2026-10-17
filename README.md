@@ -147,8 +147,8 @@ cd backend && AI_GATEWAY_API_KEY=... uv run python -m bench.models google/gemini
 ```
 
 Catalog photos are clean; real coins are worn, dark or behind a holder's plastic, and that is where the small model
-slips, sometimes with confidence (a worn 1 centime Cérès read as Napoléon III at 0.85-0.9, three times in a row). A
-reading that is unidentifiable or below `VISION_ESCALATE_BELOW` (0.95) is read again by the first of
+slips, sometimes with confidence (a worn 1 centime Cérès read as Napoléon III at 0.8-0.95, every time). A
+reading that is unidentifiable or below `VISION_ESCALATE_BELOW` (0.99: clear coins come back at 1.0) is read again by the first of
 `VISION_ESCALATION_MODELS` that answers (Gemini 3.8 Flash, then Opus), and that reading is kept. It adds 10-30 s to
 those estimates only.
 
