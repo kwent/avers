@@ -6,6 +6,7 @@ import { useI18n } from '../i18n';
 import type { Messages } from '../i18n/fr';
 import { Estimate } from '../lib/api';
 import { confidence, gradeLabel, metalName, money, number, range } from '../lib/format';
+import { useSettings } from '../lib/settings';
 import { colors } from '../theme';
 import { CopyAllButton, CopyProvider, CopyRow } from './Copy';
 import { CatalogSection, priceSources, PriceTable } from './Market';
@@ -51,17 +52,17 @@ function detailFields(est: Estimate, m: Messages, locale: string): Field[] {
   return fields.filter((f): f is Field => !!f && !!f.value);
 }
 
-/** Plain-text summary of the whole estimate, for "Copy the record". */
-function summary(est: Estimate, m: Messages, locale: string): string {
+/** Plain-text summary of the whole estimate, for "Copy the record" (without amounts when prices are hidden). */
+function summary(est: Estimate, m: Messages, locale: string, hide: boolean): string {
   const coin = est.identification;
   const cur = est.currency;
-  const v = est.valuation;
+  const v = hide ? null : est.valuation;
   const lines = [coin.title, coin.type_name, ''];
   if (v) {
     lines.push(`${m.estimate.value} : ${range(v.value_low, v.value_high, cur, locale)}`);
     if (v.retail_low != null) lines.push(m.estimate.shopPrice(range(v.retail_low, v.retail_high, cur, locale)));
   }
-  if (est.melt) lines.push(`${m.estimate.meltShort} : ${money(est.melt.value, cur, locale, 2)}`);
+  if (est.melt && !hide) lines.push(`${m.estimate.meltShort} : ${money(est.melt.value, cur, locale, 2)}`);
   lines.push('', ...detailFields(est, m, locale).map((f) => `${f.label} : ${f.value}`));
   for (const text of [coin.grade_notes, coin.notes, v && explanation(est, m, locale)]) if (text) lines.push('', text);
   return lines
@@ -119,6 +120,8 @@ function EstimateContent({
   // coins saved before the API stripped scan-only fields still carry them
   const est = saved ? { ...scanned, year_check: null, already_owned: 0 } : scanned;
   const { m, locale } = useI18n();
+  // prices hidden (Settings): no amount anywhere, to show a coin to a dealer without anchoring their offer
+  const hide = useSettings().settings.hidePrices;
   const { width } = useWindowDimensions();
   const coin = est.identification;
   const cur = est.currency;
@@ -172,7 +175,11 @@ function EstimateContent({
         {est.photo_warning === 'same_side' && <Notice tone="warning">{m.estimate.sameSide}</Notice>}
         {!!est.already_owned && <Notice>{m.estimate.alreadyOwned(est.already_owned)}</Notice>}
 
-        {v ? (
+        {hide ? (
+          <T tone="soft" testID="prices-hidden">
+            {m.collection.pricesHidden}
+          </T>
+        ) : v ? (
           // the one animated moment: the answer settles in
           <Animated.View
             entering={FadeInDown.duration(450)}
@@ -216,7 +223,7 @@ function EstimateContent({
 
         {children}
 
-        {v?.source === 'numista' && <Notice>{m.estimate.numistaWhy}</Notice>}
+        {!hide && v?.source === 'numista' && <Notice>{m.estimate.numistaWhy}</Notice>}
 
         {!est.match && !!est.numista?.images?.length && (
           // no catalog listing to show: Numista's photos of the type, to check it is the same coin
@@ -239,7 +246,7 @@ function EstimateContent({
           </Section>
         )}
 
-        {v && !!est.price_table?.length && (
+        {!hide && v && !!est.price_table?.length && (
           <PriceTable
             rows={est.price_table ?? []}
             grade={coin.grade}
@@ -250,7 +257,7 @@ function EstimateContent({
           />
         )}
 
-        {est.melt && (
+        {!hide && est.melt && (
           <Section
             title={m.estimate.metalTitle}
             footer={m.estimate.meltExplain(
@@ -276,7 +283,7 @@ function EstimateContent({
 
         <Section
           title={m.estimate.details}
-          action={<CopyAllButton text={summary(est, m, locale)} />}
+          action={<CopyAllButton text={summary(est, m, locale, hide)} />}
           footer={m.estimate.tapToCopy}
         >
           {detailFields(est, m, locale).map((f) => (
@@ -289,7 +296,7 @@ function EstimateContent({
           </T>
         ))}
 
-        <CatalogSection est={est} />
+        <CatalogSection est={est} hidePrices={hide} />
       </View>
     </View>
   );

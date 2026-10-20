@@ -146,7 +146,7 @@ export function priceSources(est: Estimate, m: Messages, locale: string): ReactN
 }
 
 /** The catalog entry the coin was matched to, then the comparable listings. */
-export function CatalogSection({ est }: { est: Estimate }) {
+export function CatalogSection({ est, hidePrices }: { est: Estimate; hidePrices?: boolean }) {
   const { m } = useI18n();
   // the listings the price rests on are shown with the prices used
   const used = new Set(est.valuation?.best_match_ids ?? []);
@@ -194,7 +194,8 @@ export function CatalogSection({ est }: { est: Estimate }) {
         )}
       </Section>
 
-      {comparables.length > 0 && (
+      {/* comparable listings are prices: none with prices hidden */}
+      {comparables.length > 0 && !hidePrices && (
         <Section title={m.estimate.comparables}>
           {comparables.map((c) => (
             <ComparableRow key={c.id} c={c} />

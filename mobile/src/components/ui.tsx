@@ -1,7 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Image } from 'expo-image';
 import { Children, ComponentProps, Fragment, isValidElement, ReactNode } from 'react';
-import { ActivityIndicator, Pressable, PressableProps, Text, TextProps, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, Pressable, PressableProps, Switch, Text, TextProps, View, ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { colors, glow as glowShadow, metals, wellShadow } from '../theme';
 import { success, thud, tick } from '../lib/platform/haptics';
@@ -314,6 +314,41 @@ export function Row({
       className={cn(box, 'active:bg-raised')}
     >
       {body}
+    </Pressable>
+  );
+}
+
+/** An on/off setting: the whole row is the target (≥56px), the switch shows the state. */
+export function SwitchRow({
+  label,
+  value,
+  onChange,
+  testID,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+  testID?: string;
+}) {
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: value }}
+      onPress={() => onChange(!value)}
+      onPressIn={tick}
+      className="min-h-touch flex-row items-center gap-3 px-4 py-3 active:bg-raised"
+    >
+      <T className="flex-1">{label}</T>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: colors.line, true: colors.gold }}
+        thumbColor={colors.cream}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      />
     </Pressable>
   );
 }

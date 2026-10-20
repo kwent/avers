@@ -190,6 +190,7 @@ const en: Messages = {
     empty: 'Your collection is empty.',
     emptyHint: 'Every coin you estimate can be added here, with its photo and value.',
     scanFirst: 'Estimate my first coin',
+    pricesHidden: 'Prices hidden',
   },
   item: {
     title: 'My coin',
@@ -215,6 +216,10 @@ const en: Messages = {
     saveTest: 'Save and test',
     connecting: 'Connecting…',
     connected: (n) => `Connected, ${n} coins in the catalog`,
+    display: 'Display',
+    hidePrices: 'Hide prices',
+    hidePricesHint:
+      'To show your collection to a dealer without influencing their estimate: no amount is shown. Prices stay saved.',
   },
   errors: {
     unreachable: 'Server unreachable. Check the internet connection.',

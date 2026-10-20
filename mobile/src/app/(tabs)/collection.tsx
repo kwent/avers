@@ -2,7 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { ReactNode, useCallback, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, ScrollView, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Band, Button, Chip, CoinWell, cn, Notice, Row, Section, T } from '../../components/ui';
+import { Band, Button, Chip, CoinWell, cn, Notice, Row, Section, SwitchRow, T } from '../../components/ui';
 import { currencyOf, errorText, useI18n } from '../../i18n';
 import type { Messages } from '../../i18n/fr';
 import { CollectionResponse, getCollection, Item, photoUrl } from '../../lib/api';
@@ -12,6 +12,8 @@ import { colors, metals } from '../../theme';
 
 type Sort = 'value' | 'year' | 'name' | 'recent';
 const SORTS: Sort[] = ['value', 'year', 'name', 'recent'];
+// prices hidden: no sorting by value either (the order alone would tell the dearest coins)
+const BLIND_SORTS: Sort[] = ['recent', 'year', 'name'];
 /** Direction a sort starts in: most valuable, oldest, A to Z, newest. */
 const DESC_FIRST: Record<Sort, boolean> = { value: true, year: false, name: false, recent: true };
 const GRADES = ['B', 'TB', 'TTB', 'SUP', 'SPL', 'FDC', 'unknown'];
@@ -45,7 +47,8 @@ function haystack(i: Item, m: Messages) {
 }
 
 export default function CollectionScreen() {
-  const { settings } = useSettings();
+  const { settings, save } = useSettings();
+  const hide = settings.hidePrices;
   const { m, locale } = useI18n();
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<CollectionResponse | null>(null);
@@ -74,6 +77,9 @@ export default function CollectionScreen() {
   const metalFacets = useMemo(() => facets(all, metalOf, Object.keys(m.metals)), [all, m]);
   const gradeFacets = useMemo(() => facets(all, gradeOf, GRADES), [all]);
 
+  const shownSort: Sort = hide && sort === 'value' ? 'recent' : sort;
+  const shownDesc = hide && sort === 'value' ? DESC_FIRST.recent : desc;
+
   const items = useMemo(() => {
     const words = fold(query).split(/\s+/).filter(Boolean);
     const list = all.filter(
@@ -90,11 +96,11 @@ export default function CollectionScreen() {
       name: (a, b) => a.title.localeCompare(b.title, locale, { sensitivity: 'base' }),
       recent: (a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id,
     };
-    return list.sort((a, b) => (desc ? -1 : 1) * compare[sort](a, b));
-  }, [all, query, metal, grade, sort, desc, locale, m]);
+    return list.sort((a, b) => (shownDesc ? -1 : 1) * compare[shownSort](a, b));
+  }, [all, query, metal, grade, shownSort, shownDesc, locale, m]);
 
   const chooseSort = (key: Sort) => {
-    if (key === sort) setDesc(!desc);
+    if (key === shownSort) setDesc(!shownDesc);
     else {
       setSort(key);
       setDesc(DESC_FIRST[key]);
@@ -126,9 +132,10 @@ export default function CollectionScreen() {
         <View>
           <Band className="gap-1" style={{ paddingTop: insets.top + 24 }}>
             <T variant="heading" tone="ink" accessibilityRole="header">
-              {empty ? m.tabs.collection : m.collection.total}
+              {empty || hide ? m.tabs.collection : m.collection.total}
             </T>
-            {data && !empty && (
+            {data && !empty && hide && <T variant="title">{m.collection.count(data.totals.count)}</T>}
+            {data && !empty && !hide && (
               <>
                 <T variant="display" tone="gold" testID="collection-total">
                   {range(data.totals.total_low, data.totals.total_high, cur, locale)}
@@ -140,6 +147,16 @@ export default function CollectionScreen() {
           <View className="gap-4 p-gutter pb-4">
             {error && <Notice tone="danger">{error}</Notice>}
             {data && !empty && (
+              <Section>
+                <SwitchRow
+                  testID="collection-hide-prices"
+                  label={m.settings.hidePrices}
+                  value={hide}
+                  onChange={(hidePrices) => save({ hidePrices })}
+                />
+              </Section>
+            )}
+            {data && !empty && !hide && (
               <Section
                 title={m.collection.breakdown}
                 footer={data.totals.unpriced_count > 0 ? m.collection.unpricedNote : undefined}
@@ -185,17 +202,17 @@ export default function CollectionScreen() {
                   returnKeyType="search"
                 />
                 <ChipRow label={m.collection.sortBy}>
-                  {SORTS.map((key) => (
+                  {(hide ? BLIND_SORTS : SORTS).map((key) => (
                     <Chip
                       key={key}
                       testID={`sort-${key}`}
                       label={
-                        key === sort
-                          ? `${m.collection.sort[key]}, ${desc ? m.collection.descending : m.collection.ascending}`
+                        key === shownSort
+                          ? `${m.collection.sort[key]}, ${shownDesc ? m.collection.descending : m.collection.ascending}`
                           : m.collection.sort[key]
                       }
-                      selected={key === sort}
-                      icon={key === sort ? (desc ? 'arrow-down' : 'arrow-up') : undefined}
+                      selected={key === shownSort}
+                      icon={key === shownSort ? (shownDesc ? 'arrow-down' : 'arrow-up') : undefined}
                       onPress={() => chooseSort(key)}
                     />
                   ))}
@@ -235,7 +252,7 @@ export default function CollectionScreen() {
                   <View className="flex-row flex-wrap items-center justify-between gap-2">
                     <View className="shrink" accessibilityLiveRegion="polite">
                       <T variant="bodyStrong">{m.collection.shown(shownCount, data?.totals.count ?? 0)}</T>
-                      {items.length > 0 && (
+                      {items.length > 0 && !hide && (
                         <T variant="small" tone="gold">
                           {range(shownWorth[0], shownWorth[1], cur, locale)}
                         </T>
@@ -292,13 +309,15 @@ export default function CollectionScreen() {
                     {gradeLabel(item.grade, m)}
                   </T>
                 )}
-                <T variant="bodyStrong" tone="gold">
-                  {item.value_low != null
-                    ? range(item.value_low, item.value_high, cur, locale)
-                    : item.melt
-                      ? m.collection.atLeast(money(item.melt.value, cur, locale))
-                      : m.estimate.unknownPrice}
-                </T>
+                {!hide && (
+                  <T variant="bodyStrong" tone="gold">
+                    {item.value_low != null
+                      ? range(item.value_low, item.value_high, cur, locale)
+                      : item.melt
+                        ? m.collection.atLeast(money(item.melt.value, cur, locale))
+                        : m.estimate.unknownPrice}
+                  </T>
+                )}
               </View>
             }
           />

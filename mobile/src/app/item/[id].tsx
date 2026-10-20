@@ -83,7 +83,7 @@ export default function ItemScreen() {
     <Section
       title={m.item.inCollection}
       footer={
-        item.quantity > 1
+        item.quantity > 1 && !settings.hidePrices
           ? m.item.total(
               range(
                 (item.value_low ?? 0) * item.quantity,
@@ -96,19 +96,22 @@ export default function ItemScreen() {
       }
     >
       <Row label={m.item.quantity} value={stepper} />
-      <View className="p-3">
-        <TextInput
-          className="min-h-[96px] rounded-sm bg-ground p-3 font-regular text-body text-cream"
-          textAlignVertical="top"
-          placeholder={m.item.notes}
-          placeholderTextColor={colors['cream-soft']}
-          accessibilityLabel={m.item.notes}
-          multiline
-          value={notes}
-          onChangeText={setNotes}
-          onBlur={() => notes !== (item.notes ?? '') && update({ notes })}
-        />
-      </View>
+      {/* notes may hold the purchase price ("prix d'achat"): hidden with the prices */}
+      {!settings.hidePrices && (
+        <View className="p-3">
+          <TextInput
+            className="min-h-[96px] rounded-sm bg-ground p-3 font-regular text-body text-cream"
+            textAlignVertical="top"
+            placeholder={m.item.notes}
+            placeholderTextColor={colors['cream-soft']}
+            accessibilityLabel={m.item.notes}
+            multiline
+            value={notes}
+            onChangeText={setNotes}
+            onBlur={() => notes !== (item.notes ?? '') && update({ notes })}
+          />
+        </View>
+      )}
     </Section>
   );
 

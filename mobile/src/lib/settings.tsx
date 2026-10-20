@@ -11,6 +11,8 @@ export type Settings = {
   /** ISO code, or 'auto': the one that goes with the language (see `currencyOf`). */
   currency: string;
   language: LanguageSetting;
+  /** no amount anywhere (to show the collection to a dealer without anchoring their offer); prices stay stored */
+  hidePrices: boolean;
 };
 
 export const CURRENCIES = ['EUR', 'CHF', 'USD', 'GBP', 'CAD'];
@@ -29,6 +31,7 @@ const DEFAULTS: Settings = {
   token: process.env.EXPO_PUBLIC_APP_TOKEN ?? '',
   currency: 'auto',
   language: 'auto',
+  hidePrices: false,
 };
 const KEY = 'avers.settings';
 

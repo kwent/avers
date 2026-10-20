@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { Button, Row, Section, T } from '../../components/ui';
+import { Button, Row, Section, SwitchRow, T } from '../../components/ui';
 import { detectLanguage, errorText, LANGUAGES, LanguageSetting, suggestedCurrency, useI18n } from '../../i18n';
 import { health } from '../../lib/api';
 import { number } from '../../lib/format';
@@ -89,6 +89,15 @@ export default function SettingsScreen() {
             onPress={() => save({ currency: c })}
           />
         ))}
+      </Section>
+
+      <Section title={m.settings.display} footer={m.settings.hidePricesHint}>
+        <SwitchRow
+          testID="hide-prices"
+          label={m.settings.hidePrices}
+          value={settings.hidePrices}
+          onChange={(hidePrices) => save({ hidePrices })}
+        />
       </Section>
 
       {/* the access code comes with the link; typing it here is the fallback (e.g. an icon added to the home screen

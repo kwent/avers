@@ -196,6 +196,7 @@ const fr = {
     empty: 'Votre collection est vide.',
     emptyHint: 'Chaque pièce estimée peut y être ajoutée, avec sa photo et sa valeur.',
     scanFirst: 'Estimer ma première pièce',
+    pricesHidden: 'Prix masqués',
   },
   item: {
     title: 'Ma pièce',
@@ -221,6 +222,10 @@ const fr = {
     saveTest: 'Enregistrer et tester',
     connecting: 'Connexion…',
     connected: (n: string) => `Connecté, ${n} pièces au catalogue`,
+    display: 'Affichage',
+    hidePrices: 'Masquer les prix',
+    hidePricesHint:
+      'Pour montrer votre collection à un marchand sans influencer son estimation : aucun montant n’est affiché. Les prix restent enregistrés.',
   },
   errors: {
     unreachable: 'Serveur injoignable. Vérifiez la connexion internet.',
